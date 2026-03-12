@@ -1,0 +1,50 @@
+# ========================
+# 1. Node & React (Frontend)
+# ========================
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+.pnpm-debug.log
+
+# ========================
+# 2. Electron (Builds & Binaries)
+# ========================
+# Ini yang memicu error 100MB sebelumnya!
+out/
+release/
+build/
+*.exe
+*.dll
+*.dmg
+*.AppImage
+*.msi
+*.zip
+
+# ========================
+# 3. Laravel & PHP (Backend)
+# ========================
+vendor/
+
+# Jangan pernah mem-push file .env ke public/GitHub!
+.env
+.env.backup
+.env.production
+.env.local
+
+storage/*.key
+/public/hot
+/public/storage
+/storage/app/public/
+/storage/debugbar/
+/storage/framework/
+/storage/logs/
+
+# ========================
+# 4. OS & IDE (WebStorm, VS Code, Windows)
+# ========================
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+ehthumbs.db

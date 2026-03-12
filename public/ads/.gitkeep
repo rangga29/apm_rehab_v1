@@ -1,0 +1,12 @@
+# Place your advertisement videos in this folder
+
+# Naming convention: ad1.mp4, ad2.mp4, ad3.mp4, etc.
+# Videos will play in sequential order and loop continuously
+# Supported formats: MP4 (recommended), WebM, MOV
+
+# Example structure:
+# ad1.mp4 - Promotes new services
+# ad2.mp4 - Shows facility tour
+# ad3.mp4 - Highlights staff testimonials
+
+# See README.md for detailed instructions

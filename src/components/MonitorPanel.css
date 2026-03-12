@@ -1,0 +1,159 @@
+/* Monitor Panel Styles - Cyan Theme */
+.monitor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.no-monitors {
+  text-align: center;
+  padding: 40px 20px;
+  background: rgba(255, 191, 0, 0.2);
+  border-radius: 8px;
+  border: 2px dashed rgba(255, 191, 0, 0.4);
+}
+
+.no-monitors p {
+  margin: 0;
+  color: #d97706;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.monitor-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(79, 172, 254, 0.05);
+  border: 2px solid rgba(79, 172, 254, 0.2);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.monitor-item:hover:not(.current) {
+  background: rgba(79, 172, 254, 0.1);
+  border-color: #00f2fe;
+  transform: translateX(4px);
+}
+
+.monitor-item.current {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: #0061ff;
+  cursor: default;
+  box-shadow: 0 4px 15px rgba(0, 97, 255, 0.2);
+}
+
+.monitor-icon {
+  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(79, 172, 254, 0.15);
+  flex-shrink: 0;
+}
+
+.monitor-info {
+  flex: 1;
+}
+
+.monitor-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0061ff;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.primary-badge {
+  font-size: 11px;
+  background: linear-gradient(135deg, #0061ff 0%, #4facfe 100%);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 97, 255, 0.3);
+}
+
+.monitor-details {
+  font-size: 13px;
+  color: #4facfe;
+  margin-bottom: 2px;
+}
+
+.monitor-status {
+  font-size: 12px;
+  color: #00f2fe;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.monitor-select-button {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #0061ff 0%, #4facfe 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 97, 255, 0.3);
+}
+
+.monitor-select-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0052cc 0%, #4facfe 100%);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 97, 255, 0.4);
+}
+
+.monitor-select-button:disabled {
+  background: rgba(79, 172, 254, 0.3);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.monitor-item.current .monitor-select-button {
+  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+  cursor: default;
+}
+
+/* Loading message in settings panel */
+.loading-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #4facfe;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Scrollbar styling for monitor list */
+.monitor-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.monitor-list::-webkit-scrollbar-track {
+  background: rgba(79, 172, 254, 0.1);
+  border-radius: 4px;
+}
+
+.monitor-list::-webkit-scrollbar-thumb {
+  background: rgba(79, 172, 254, 0.3);
+  border-radius: 4px;
+}
+
+.monitor-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(79, 172, 254, 0.5);
+}

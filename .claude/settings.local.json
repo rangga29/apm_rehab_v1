@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(rm:*)",
+      "Bash(npx vite:*)",
+      "Bash(grep:*)",
+      "Bash(npx asar:*)",
+      "Bash(npx:*)",
+      "Bash(asar extract:*)",
+      "Bash(ls:*)",
+      "Bash(taskkill:*)",
+      "Bash(cp:*)",
+      "Bash(set WIN_SKIP_CODE_SIGNING=1:*)",
+      "Bash(explorer C:\\\\Users\\\\rangg\\\\WebstormProjects\\\\apm_rehab_v1\\\\release\\\\win-unpacked:*)",
+      "Bash(start:*)",
+      "Bash(tasklist:*)",
+      "Bash(cmd.exe:*)"
+    ]
+  }
+}

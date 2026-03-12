@@ -1,0 +1,645 @@
+.video-ads-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  /* Gradient senada dengan bg_rsck.jpg - biru cyan cerah */
+  background: linear-gradient(180deg, #4facfe 0%, #00f2fe 50%, #0061ff 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Background Video Layer */
+.ads-background-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  opacity: 0.3;
+}
+
+/* Overlay untuk memblend background video dengan gradient */
+.ads-background-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg,
+    rgba(79, 172, 254, 0.7) 0%,
+    rgba(0, 242, 254, 0.5) 50%,
+    rgba(0, 97, 255, 0.7) 100%
+  );
+  z-index: 1;
+}
+
+/* ========== VIDEO FRAME ========== */
+.ad-video-frame {
+  position: relative;
+  width: 85%;
+  max-width: 1600px;
+  aspect-ratio: 16 / 9;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 8px rgba(255, 255, 255, 0.4),
+    0 0 0 12px rgba(79, 172, 254, 0.3),
+    0 20px 60px rgba(0, 0, 0, 0.4),
+    0 0 100px rgba(79, 172, 254, 0.3);
+  z-index: 5;
+  background: #000;
+}
+
+.ad-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ========== LAYOUT OVERLAY ========== */
+.ads-layout-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 24px 40px;
+}
+
+/* ========== TOP SECTION ========== */
+.ads-top-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: auto;
+  gap: 40px;
+}
+
+/* Logo - KANAN ATAS, LEBIH BESAR */
+.ads-logo-area {
+  display: flex;
+  align-items: center;
+}
+
+.ads-logo-container {
+  width: 350px;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.ads-logo-container:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.ads-logo-image {
+  max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  padding: 12px;
+}
+
+.ads-logo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.ads-logo-placeholder span {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 3px;
+}
+
+/* Title - KIRI, LEBIH BESAR */
+.ads-title-area {
+  flex: 1;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.ads-title-wrapper {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 16px;
+  padding: 20px 50px;
+  box-shadow: 0 8px 32px rgba(79, 172, 254, 0.3);
+  transition: all 0.3s ease;
+}
+
+.ads-title-wrapper:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 12px 40px rgba(79, 172, 254, 0.4);
+  transform: translateY(-2px);
+}
+
+.ads-title-content {
+  text-align: left;
+}
+
+.ads-title-content h1 {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #0061ff;
+  margin: 0;
+  letter-spacing: 2px;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+/* ========== BOTTOM SECTION ========== */
+.ads-bottom-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  pointer-events: auto;
+}
+
+/* Video indicators */
+.ad-indicators {
+  display: flex;
+  gap: 14px;
+  z-index: 15;
+}
+
+.ad-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+}
+
+.ad-dot:hover {
+  background: rgba(255, 255, 255, 0.7);
+  transform: scale(1.2);
+}
+
+.ad-dot.active {
+  background: rgba(255, 255, 255, 1);
+  transform: scale(1.6);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 1);
+}
+
+/* Button - KIRI, LEBIH BESAR */
+.ads-button-area {
+  z-index: 20;
+}
+
+.start-registration-button {
+  background: linear-gradient(135deg, #0061ff 0%, #4facfe 100%);
+  color: white;
+  border: none;
+  padding: 22px 70px;
+  border-radius: 50px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 40px rgba(0, 97, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  position: relative;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+.start-registration-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transition: left 0.5s ease;
+}
+
+.start-registration-button:hover::before {
+  left: 100%;
+}
+
+.start-registration-button:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 15px 50px rgba(0, 97, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.start-registration-button:active {
+  transform: translateY(-1px) scale(1.02);
+}
+
+/* ========== LOADING STATE ========== */
+.loading-ads {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #4facfe 0%, #00f2fe 50%, #0061ff 100%);
+  color: white;
+  position: relative;
+  z-index: 2;
+}
+
+.loading-ads .loading-spinner {
+  width: 60px;
+  height: 60px;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-ads p {
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+/* ========== NO ADS PLACEHOLDER ========== */
+.no-ads-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  position: relative;
+  z-index: 2;
+}
+
+.placeholder-content {
+  text-align: center;
+  color: white;
+  padding: 3rem;
+  max-width: 800px;
+}
+
+.placeholder-logo {
+  width: 150px;
+  height: 150px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 2rem;
+  backdrop-filter: blur(10px);
+}
+
+.placeholder-logo span {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: 5px;
+}
+
+.placeholder-content h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+}
+
+.placeholder-content .placeholder-hint {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  margin: 2rem 0;
+  padding: 1rem 2rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.placeholder-content .ads-info {
+  font-size: 1rem;
+  opacity: 0.8;
+  line-height: 1.6;
+  margin: 1.5rem 0 2rem;
+}
+
+.no-ads-placeholder .start-registration-button {
+  margin-top: 1rem;
+}
+
+/* ========== DECORATIVE ELEMENTS ========== */
+/* Corner decorations - cyan theme */
+.video-ads-container::before,
+.video-ads-container::after {
+  content: '';
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.video-ads-container::before {
+  top: 30px;
+  left: 30px;
+  border-right: none;
+  border-bottom: none;
+  border-top-left-radius: 30px;
+}
+
+.video-ads-container::after {
+  bottom: 30px;
+  right: 30px;
+  border-left: none;
+  border-top: none;
+  border-bottom-right-radius: 30px;
+}
+
+/* ========== RESPONSIVE DESIGN ========== */
+
+@media (max-width: 1600px) {
+  .ad-video-frame {
+    width: 90%;
+  }
+}
+
+@media (max-width: 1400px) {
+  .ad-video-frame {
+    width: 90%;
+  }
+
+  .ads-title-content h1 {
+    font-size: 2.5rem;
+  }
+
+  .start-registration-button {
+    padding: 20px 60px;
+    font-size: 1.5rem;
+  }
+
+  .ads-logo-container {
+    width: 300px;
+    height: 90px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .ads-layout-overlay {
+    padding: 20px 30px;
+  }
+
+  .ads-top-section {
+    gap: 20px;
+  }
+
+  .ads-logo-container {
+    width: 260px;
+    height: 80px;
+  }
+
+  .ads-logo-placeholder span {
+    font-size: 1.3rem;
+  }
+
+  .ads-title-wrapper {
+    padding: 16px 35px;
+  }
+
+  .ads-title-content h1 {
+    font-size: 2rem;
+    letter-spacing: 1.5px;
+  }
+
+  .start-registration-button {
+    padding: 18px 50px;
+    font-size: 1.4rem;
+  }
+
+  .ads-bottom-section {
+    gap: 20px;
+  }
+
+  .ad-dot {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .ads-layout-overlay {
+    padding: 16px 20px;
+  }
+
+  .ads-top-section {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .ads-logo-container {
+    width: 220px;
+    height: 70px;
+    align-self: flex-end;
+  }
+
+  .ads-logo-image {
+    padding: 10px;
+  }
+
+  .ads-logo-placeholder span {
+    font-size: 1.1rem;
+  }
+
+  .ads-title-wrapper {
+    padding: 14px 24px;
+  }
+
+  .ads-title-content h1 {
+    font-size: 1.6rem;
+    letter-spacing: 1px;
+  }
+
+  .start-registration-button {
+    padding: 16px 40px;
+    font-size: 1.2rem;
+  }
+
+  .ad-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .ad-video-frame {
+    width: 95%;
+    border-radius: 12px;
+  }
+}
+
+/* ========== ANIMATIONS ========== */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ads-logo-container {
+  animation: fadeInRight 0.6s ease;
+}
+
+.ads-title-wrapper {
+  animation: fadeInLeft 0.6s ease 0.1s both;
+}
+
+.ad-video-frame {
+  animation: scaleIn 0.8s ease 0.2s both;
+}
+
+.start-registration-button {
+  animation: fadeInUp 0.6s ease 0.4s both;
+}
+
+/* Fade in up untuk center bottom */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== PULSE ANIMATION FOR BUTTON ========== */
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 10px 40px rgba(0, 97, 255, 0.5);
+  }
+  50% {
+    box-shadow: 0 10px 60px rgba(0, 97, 255, 0.8);
+  }
+}
+
+.start-registration-button {
+  animation: pulse 2s ease-in-out infinite, fadeInUp 0.6s ease 0.4s both;
+}
+
+.start-registration-button:hover {
+  animation: none;
+}
+
+/* ========== GLOW EFFECT FOR VIDEO FRAME ========== */
+@keyframes borderGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 8px rgba(255, 255, 255, 0.4),
+      0 0 0 12px rgba(79, 172, 254, 0.3),
+      0 20px 60px rgba(0, 0, 0, 0.4),
+      0 0 100px rgba(79, 172, 254, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px rgba(255, 255, 255, 0.5),
+      0 0 0 12px rgba(79, 172, 254, 0.4),
+      0 20px 60px rgba(0, 0, 0, 0.4),
+      0 0 120px rgba(79, 172, 254, 0.4);
+  }
+}
+
+.ad-video-frame {
+  animation: borderGlow 3s ease-in-out infinite, scaleIn 0.8s ease 0.2s both;
+}

@@ -1,0 +1,122 @@
+/* Context Menu - No backdrop, always on top like Windows context menu */
+.context-menu {
+  position: fixed;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 97, 255, 0.3);
+  border: 2px solid rgba(79, 172, 254, 0.3);
+  z-index: 99999;
+  min-width: 300px;
+  max-width: 350px;
+  overflow: hidden;
+  animation: contextMenuFadeIn 0.2s ease;
+  pointer-events: auto;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.context-menu-header {
+  /* Cyan gradient */
+  background: linear-gradient(135deg, #0061ff 0%, #4facfe 100%);
+  color: white;
+  padding: 15px 20px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.context-menu-items {
+  padding: 10px 0;
+}
+
+.context-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 20px;
+  border: none;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.context-menu-item:hover {
+  background: rgba(79, 172, 254, 0.1);
+}
+
+.context-menu-item.setting:hover {
+  background: rgba(79, 172, 254, 0.15);
+}
+
+.context-menu-item.reset:hover {
+  background: rgba(255, 191, 0, 0.15);
+}
+
+.context-menu-item.monitor:hover {
+  background: rgba(0, 242, 254, 0.15);
+}
+
+.context-menu-item.exit:hover {
+  background: rgba(254, 215, 215, 0.15);
+}
+
+.menu-icon {
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(79, 172, 254, 0.1);
+  border-radius: 8px;
+  color: #0061ff;
+}
+
+.context-menu-item.setting:hover .menu-icon {
+  background: rgba(79, 172, 254, 0.2);
+}
+
+.context-menu-item.reset:hover .menu-icon {
+  background: rgba(255, 191, 0, 0.2);
+}
+
+.context-menu-item.monitor:hover .menu-icon {
+  background: rgba(0, 242, 254, 0.2);
+}
+
+.context-menu-item.exit:hover .menu-icon {
+  background: rgba(254, 215, 215, 0.2);
+}
+
+.menu-text {
+  flex: 1;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0061ff;
+}
+
+.menu-desc {
+  font-size: 0.8rem;
+  color: #4facfe;
+  display: block;
+  margin-top: 2px;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: rgba(79, 172, 254, 0.2);
+  margin: 10px 20px;
+}
