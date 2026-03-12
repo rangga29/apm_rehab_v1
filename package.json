@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && electron-builder",
+    "build:linux": "vite build && electron-builder --linux",
+    "build:win": "vite build && electron-builder --win",
     "build:dir": "vite build && electron-builder --dir",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -49,6 +51,14 @@
       ],
       "icon": "build/icon.ico",
       "signAndEditExecutable": false
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Utility"
     },
     "nsis": {
       "oneClick": false,

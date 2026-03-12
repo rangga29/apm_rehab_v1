@@ -13,6 +13,8 @@ yarn-debug.log
 # Ini yang memicu error 100MB sebelumnya!
 out/
 release/
+dist/
+dist-electron/
 build/
 *.exe
 *.dll
