@@ -2,7 +2,7 @@
   "name": "apm-rehab-kiosk",
   "private": true,
   "version": "1.0.0",
-  "type": "module",
+  "author": "APM Rehab <dev@apmrehab.com>",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "crypto-js": "^4.2.0",
+    "dotenv": "^17.3.1",
     "html5-qrcode": "^2.3.8",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -45,6 +47,7 @@
       "dist-electron/**/*",
       "package.json"
     ],
+    "asar": false,
     "win": {
       "target": [
         "nsis"

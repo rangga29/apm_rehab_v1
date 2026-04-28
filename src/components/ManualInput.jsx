@@ -56,9 +56,9 @@ function ManualInput({ onSubmit, onCancel }) {
 
   return (
     <div className="manual-input-container">
-      <h2>Masukkan Kode Janji Temu</h2>
+      <h2>MASUKKAN KODE JANJI TEMU</h2>
       <p className="input-instruction">
-        Masukkan 5 digit angka terakhir dari kode bukti pendaftaran Anda
+        Masukkan 5 Digit Angka Terakhir Dari Kode Pada Bukti Pendaftaran Registrasi Online Anda
       </p>
 
       <form onSubmit={handleSubmit} className="input-form-horizontal">
@@ -117,18 +117,20 @@ function ManualInput({ onSubmit, onCancel }) {
           <div className="keypad-row">
             <button type="button" className="keypad-btn clear-btn" onClick={handleClear}>C</button>
             <button type="button" className="keypad-btn" onClick={() => handleNumberClick('0')}>0</button>
-            <button type="button" className="keypad-btn backspace-btn" onClick={handleBackspace}>⌫</button>
+            <button type="button" className="keypad-btn backspace-btn" onClick={handleBackspace}>
+              <img src="./icons/x.svg" alt="Delete" style={{width: '24px', height: '24px'}} />
+            </button>
           </div>
         </div>
       </form>
 
       <div className="input-tips">
-        <h3>Tips:</h3>
         <ul>
-          <li>Kode terdiri dari 5 digit angka</li>
-          <li>Gunakan tombol angka di layar untuk input</li>
-          <li>Tombol ⌫ untuk menghapus satu digit</li>
-          <li>Tombol C untuk menghapus semua</li>
+          <li>Kode OPA Terdapat Pada Bukti Pendaftaran Dari Registrasi Online</li>
+          <li>Kode Terdiri Dari 5 Digit Angka</li>
+          <li>Gunakan Tombol Angka Di Layar Untuk Input</li>
+          <li>Gunakan Tombol X Untuk Menghapus Satu Digit Angka</li>
+          <li>Gunakan Tombol C Untuk Menghapus Semua Digit Angka</li>
         </ul>
       </div>
     </div>

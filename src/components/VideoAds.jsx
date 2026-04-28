@@ -127,7 +127,7 @@ function VideoAds({ onExit }) {
             <div className="placeholder-logo">
               <span>APM</span>
             </div>
-            <h1>APM Rehabilitasi Medik & Fisioterapi</h1>
+            <h1>APM REHABILITASI MEDIK & FISIOTERAPI</h1>
             <p className="placeholder-hint">
               Klik kanan untuk menu setting
             </p>

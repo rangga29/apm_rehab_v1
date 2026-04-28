@@ -258,3 +258,133 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Tabs ── */
+.settings-tabs {
+  display: flex;
+  border-bottom: 3px solid rgba(79, 172, 254, 0.2);
+}
+
+.tab-button {
+  flex: 1;
+  padding: 15px;
+  border: none;
+  background: transparent;
+  color: #4facfe;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -3px;
+}
+
+.tab-button:hover {
+  color: #0061ff;
+  background: rgba(79, 172, 254, 0.05);
+}
+
+.tab-button.active {
+  color: #0061ff;
+  border-bottom-color: #0061ff;
+  background: rgba(0, 97, 255, 0.05);
+}
+
+/* ── Print Settings ── */
+.print-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.print-settings .settings-info {
+  margin-bottom: 0;
+}
+
+.print-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(79, 172, 254, 0.05);
+  border: 3px solid rgba(79, 172, 254, 0.2);
+  border-radius: 12px;
+}
+
+.print-setting-label {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.print-setting-label input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  accent-color: #0061ff;
+  cursor: pointer;
+}
+
+.print-setting-label span {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0061ff;
+}
+
+.print-setting-copies {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.copies-label {
+  font-size: 1rem;
+  color: #4facfe;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.copies-input {
+  width: 70px;
+  padding: 10px 12px;
+  border: 2px solid rgba(79, 172, 254, 0.4);
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0061ff;
+  background: white;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.copies-input::-webkit-inner-spin-button,
+.copies-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+.copies-input:focus {
+  outline: none;
+  border-color: #0061ff;
+  box-shadow: 0 0 0 3px rgba(0, 97, 255, 0.15);
+}
+
+.copies-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.print-settings-note {
+  padding: 15px;
+  background: rgba(0, 242, 254, 0.08);
+  border-radius: 10px;
+  border: 2px solid rgba(0, 242, 254, 0.2);
+}
+
+.print-settings-note p {
+  margin: 0;
+  color: #4facfe;
+  font-size: 0.9rem;
+}
+

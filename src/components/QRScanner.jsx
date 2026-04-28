@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import './QRScanner.css'
 
-function QRScanner({ onScanSuccess, onError }) {
+function QRScanner({ onScanSuccess, onError, onGoHome }) {
   const scannerRef = useRef(null)
   const [isScanning, setIsScanning] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -47,40 +47,47 @@ function QRScanner({ onScanSuccess, onError }) {
   useEffect(() => {
     const getCameras = async () => {
       try {
-        console.log('🔍 Getting cameras...')
-        console.log('🌐 User agent:', navigator.userAgent)
-        console.log('🔒 HTTPS:', window.location.protocol === 'https:')
-        console.log('📱 Electron API:', !!window.electronAPI)
+        console.log('Getting cameras...')
 
         // Check if mediaDevices API is available
         if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-          console.error('❌ mediaDevices API not available')
-          setCameraError('Browser tidak mendukung akses kamera')
+          console.error('mediaDevices API not available')
+          setCameraError('Browser Tidak Mendukung Akses Kamera')
+          return
+        }
+
+        // Request permission first
+        try {
+          await navigator.mediaDevices.getUserMedia({ video: true })
+          console.log('Camera permission granted')
+        } catch (permError) {
+          console.error('Camera permission denied:', permError)
+          setCameraError('Izin Kamera Ditolak. Pastikan Kamera Diizinkan.')
           return
         }
 
         const devices = await Html5Qrcode.getCameras()
-        console.log('📷 Available cameras:', devices)
+        console.log('Available cameras:', devices)
 
         if (devices && devices.length > 0) {
           setCameras(devices)
-          // Auto-select first camera (usually back camera on mobile)
-          const defaultCamera = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0]
+          // Auto-select first camera (usually back camera on mobile, or first available)
+          const defaultCamera = devices.find(d => d.label && d.label.toLowerCase().includes('back')) || devices[0]
           setSelectedCamera(defaultCamera.id)
-          console.log('✅ Selected camera:', defaultCamera.label || `Camera ${defaultCamera.id}`)
+          console.log('Selected camera:', defaultCamera.label || `Camera ${defaultCamera.id}`)
 
           // Wait a bit to ensure DOM is ready, then auto-start scanning
-          await new Promise(resolve => setTimeout(resolve, 500))
+          await new Promise(resolve => setTimeout(resolve, 300))
           await startScanning(defaultCamera.id)
         } else {
-          console.warn('⚠️ No cameras found')
-          setCameraError('Tidak ada kamera yang ditemukan')
+          console.warn('No cameras found')
+          setCameraError('Tidak Ada Kamera Yang Ditemukan. Pastikan Kamera Terpasang Dengan Benar.')
         }
       } catch (error) {
-        console.error('❌ Error getting cameras:', error)
+        console.error('Error getting cameras:', error)
         console.error('Error details:', error.message)
         console.error('Error stack:', error.stack)
-        setCameraError(`Gagal mengakses kamera: ${error.message || 'Pastikan izin kamera diberikan.'}`)
+        setCameraError('Gagal Mengakses Kamera. Pastikan Kamera Terhubung Dengan Benar.')
       }
     }
 
@@ -90,13 +97,13 @@ function QRScanner({ onScanSuccess, onError }) {
   const startScanning = async (cameraId = selectedCamera) => {
     // Prevent multiple simultaneous start attempts
     if (isStartingRef.current) {
-      console.log('⚠️ Already starting, skipping...')
+      console.log('Already starting, skipping...')
       return
     }
 
     // Wait if currently stopping
     if (isStoppingRef.current) {
-      console.log('⚠️ Currently stopping, waiting...')
+      console.log('Currently stopping, waiting...')
       await new Promise(resolve => setTimeout(resolve, 500))
     }
 
@@ -115,9 +122,9 @@ function QRScanner({ onScanSuccess, onError }) {
 
       const config = {
         fps: 10,
-        qrbox: { width: 300, height: 300 },
+        qrbox: { width: 350, height: 350 },
         aspectRatio: 1.0,
-        // Tambahkan konfigurasi untuk lebih baik detection
+        // Support multiple barcode formats
         formatsToSupport: [
           Html5QrcodeSupportedFormats.QR_CODE,
           Html5QrcodeSupportedFormats.CODE_128,
@@ -125,59 +132,119 @@ function QRScanner({ onScanSuccess, onError }) {
         ]
       }
 
-      // Html5Qrcode only accepts 1 key in camera config
-      const cameraConfig = { deviceId: { exact: cameraId } }
+      // Camera config - try specific camera first, fallback to any
+      let cameraConfig
+      if (cameraId && cameraId.length > 0) {
+        // Try with deviceId (direct, not exact)
+        cameraConfig = { deviceId: cameraId }
+      } else {
+        // Fallback: no camera ID (use any available)
+        cameraConfig = {}
+      }
 
-      console.log('🎬 Starting camera:', cameraId)
-      console.log('📋 Config:', config)
+      console.log('Starting camera with config:', cameraConfig)
 
       setScanAttempts(0)
 
-      await html5QrCode.start(
-        cameraConfig,
-        config,
-        (decodedText) => {
-          console.log('📱 QR Code scanned:', decodedText)
-          console.log('✅ Scan successful after', scanAttempts, 'attempts')
+      try {
+        await html5QrCode.start(
+          cameraConfig,
+          config,
+          (decodedText) => {
+            console.log('QR Code scanned:', decodedText)
 
-          // Play beep sound
-          playBeep()
+            // Play beep sound
+            playBeep()
 
-          setScannedText(decodedText)
-          setIsScanning(true)
+            setScannedText(decodedText)
+            setIsScanning(true)
 
-          // Show success message briefly before processing
-          setTimeout(() => {
-            onScanSuccess(decodedText)
-            stopScanning()
-          }, 500)
-        },
-        (errorMessage) => {
-          // Track scan attempts dan error terakhir untuk debugging
-          setScanAttempts(prev => {
-            const newCount = prev + 1
-            // Log error setiap N attempts untuk mengurangi console spam
-            if (newCount % 50 === 0) {
-              console.warn('⚠️ Scan attempts:', newCount, '- Last error:', errorMessage)
+            // Show success message briefly before processing
+            setTimeout(() => {
+              onScanSuccess(decodedText)
+              stopScanning()
+            }, 500)
+          },
+          (errorMessage) => {
+            // Track scan attempts and last error for debugging
+            setScanAttempts(prev => {
+              const newCount = prev + 1
+              // Log error every N attempts to reduce console spam
+              if (newCount % 100 === 0) {
+                console.warn('Scan attempts:', newCount, '- Last error:', errorMessage)
+              }
+              return newCount
+            })
+
+            // Save last error for display if needed
+            setLastError(errorMessage)
+
+            // Show error to user if it's a serious error (not "no qr code found")
+            if (errorMessage && !errorMessage.includes('No barcode or QR code')) {
+              console.debug('QR scan error:', errorMessage)
             }
-            return newCount
-          })
-
-          // Simpan error terakhir untuk ditampilkan jika perlu
-          setLastError(errorMessage)
-
-          // Tampilkan error ke user jika error berat (bukan "no qr code found")
-          if (errorMessage && !errorMessage.includes('No barcode or QR code')) {
-            console.debug('QR scan error:', errorMessage)
           }
-        }
-      )
+        )
+        setIsScanning(true)
+        console.log('Camera started successfully')
+      } catch (startError) {
+        console.error('First camera config failed:', startError.message)
 
-      setIsScanning(true)
-      console.log('✅ Camera started successfully')
+        // If specific camera failed, try with exact filter
+        if (cameraId && cameraId.length > 0 && cameraConfig.deviceId !== undefined) {
+          console.log('Trying with exact filter...')
+          try {
+            await html5QrCode.start(
+              { deviceId: { exact: cameraId } },
+              config,
+              (decodedText) => {
+                console.log('QR Code scanned:', decodedText)
+                playBeep()
+                setScannedText(decodedText)
+                setIsScanning(true)
+                setTimeout(() => {
+                  onScanSuccess(decodedText)
+                  stopScanning()
+                }, 500)
+              },
+              (errorMessage) => {
+                setScanAttempts(prev => {
+                  const newCount = prev + 1
+                  if (newCount % 100 === 0) {
+                    console.warn('Scan attempts:', newCount, '- Last error:', errorMessage)
+                  }
+                  return newCount
+                })
+                setLastError(errorMessage)
+                if (errorMessage && !errorMessage.includes('No barcode or QR code')) {
+                  console.debug('QR scan error:', errorMessage)
+                }
+              }
+            )
+            setIsScanning(true)
+            console.log('Camera started with exact filter')
+          } catch (exactError) {
+            console.error('Exact filter also failed:', exactError.message)
+            throw exactError
+          }
+        } else {
+          throw startError
+        }
+      }
     } catch (error) {
-      console.error('❌ Camera error:', error)
-      setCameraError(`Tidak dapat mengakses kamera: ${error.message}`)
+      console.error('Camera error:', error)
+      console.error('Error code:', error.code)
+      console.error('Error name:', error.name)
+
+      let errorMsg = 'Tidak Dapat Mengakses Kamera.'
+
+      if (error.message && error.message.includes('Requested device not found')) {
+        errorMsg = 'Kamera Tidak Ditemukan. Pastikan Kamera USB Terhubung Dengan Benar.'
+      } else if (error.message && (error.message.includes('Permission denied') || error.message.includes('NotAllowedError'))) {
+        errorMsg = 'Izin Kamera Ditolak. Pastikan Kamera Diizinkan Di Pengaturan Browser.'
+      }
+
+      setCameraError(errorMsg)
       setIsScanning(false)
     } finally {
       isStartingRef.current = false
@@ -278,7 +345,7 @@ function QRScanner({ onScanSuccess, onError }) {
       {/* Scan hint overlay - subtle hint for user */}
       {isScanning && !scannedText && !cameraError && (
         <div className="scan-hint-overlay">
-          <p>Arahkan QR Code ke kamera</p>
+          <p>Arahkan QR Code Ke Kamera</p>
         </div>
       )}
 
@@ -286,7 +353,7 @@ function QRScanner({ onScanSuccess, onError }) {
       {isScanning && !scannedText && !cameraError && (
         <div className="scanning-status">
           <div className="scanning-indicator"></div>
-          <p className="scanning-text">🔍 Memindai QR Code...</p>
+          <p className="scanning-text">Memindai QR Code...</p>
           {scanAttempts > 0 && scanAttempts % 50 === 0 && (
             <p className="scanning-debug">Scan attempts: {scanAttempts}</p>
           )}
@@ -296,7 +363,7 @@ function QRScanner({ onScanSuccess, onError }) {
       {/* Camera Selection */}
       {cameras.length > 0 && (
         <div className="camera-selector">
-          <label htmlFor="camera-select">📷 Pilih Kamera:</label>
+          <label htmlFor="camera-select">📷 Pilih Kamera</label>
           <select
             id="camera-select"
             value={selectedCamera || ''}
@@ -317,7 +384,7 @@ function QRScanner({ onScanSuccess, onError }) {
       {/* Scanned Text Display */}
       {scannedText && (
         <div className="scanned-text-display">
-          <div className="scanned-text-label">✅ QR Code Terdeteksi:</div>
+          <div className="scanned-text-label">QR Code Terdeteksi</div>
           <div className="scanned-text-value">{scannedText}</div>
           <div className="scanned-text-hint">Memproses...</div>
         </div>
@@ -327,7 +394,7 @@ function QRScanner({ onScanSuccess, onError }) {
       {!isScanning && !cameraError && cameras.length === 0 && (
         <div className="scanner-overlay">
           <div className="loading-spinner"></div>
-          <p className="scan-hint">Mendeteksi kamera...</p>
+          <p className="scan-hint">Mendeteksi Kamera...</p>
         </div>
       )}
 
@@ -336,10 +403,10 @@ function QRScanner({ onScanSuccess, onError }) {
           <p className="error-message">{cameraError}</p>
           <button
             className="retry-button"
-            onClick={handleRetry}
+            onClick={onGoHome}
             disabled={isTransitioning}
           >
-            {isTransitioning ? 'Memproses...' : 'Coba Lagi'}
+            Kembali Ke Menu Utama
           </button>
         </div>
       )}

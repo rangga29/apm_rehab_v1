@@ -21,7 +21,7 @@
 .input-instruction {
   color: #4facfe;
   font-size: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 0.5rem;
   font-weight: 600;
 }
 
@@ -220,17 +220,10 @@
 .input-tips {
   margin-top: 2rem;
   padding: 1.5rem;
-  background: rgba(79, 172, 254, 0.1);
+  background: rgba(79, 172, 254, 0.15);
   border-radius: 15px;
-  border: 2px solid rgba(79, 172, 254, 0.2);
+  border: 2px solid #4facfe;
   text-align: left;
-}
-
-.input-tips h3 {
-  color: #0061ff;
-  font-size: 1rem;
-  margin-bottom: 0.75rem;
-  font-weight: 700;
 }
 
 .input-tips ul {
@@ -240,17 +233,22 @@
 }
 
 .input-tips li {
-  color: #4facfe;
-  font-size: 0.9rem;
-  padding: 0.25rem 0;
-  padding-left: 1.5rem;
+  color: #0061ff;
+  font-size: 1.1rem;
+  padding: 0.4rem 0;
+  padding-left: 1.8rem;
   position: relative;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .input-tips li::before {
-  content: '💡';
+  content: "•";
   position: absolute;
-  left: 0;
+  left: 0.5rem;
+  color: #0061ff;
+  font-size: 1.5rem;
+  font-weight: 700;
 }
 
 /* Responsive untuk layar kecil */

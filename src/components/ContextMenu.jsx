@@ -16,28 +16,28 @@ function ContextMenu({ x, y, onClose, onOpenSettings, onOpenMonitor, onReset, on
       }}
     >
       <div className="context-menu-header">
-        <span>⚙️ Menu Kiosk</span>
+        <span>MENU KIOSK</span>
       </div>
 
       <div className="context-menu-items">
         <button className="context-menu-item setting" onClick={() => handleMenuClick(onOpenSettings)}>
-          <span className="menu-icon">🎬</span>
+          <img src="./icons/settings.svg" alt="Settings" className="menu-icon" />
           <div>
-            <span className="menu-text">Setting Video</span>
-            <span className="menu-desc">Pilih video yang diputar</span>
+            <span className="menu-text">Pengaturan Video</span>
+            <span className="menu-desc">Pilih video yang diputar pada mode iklan</span>
           </div>
         </button>
 
         <button className="context-menu-item monitor" onClick={() => handleMenuClick(onOpenMonitor)}>
-          <span className="menu-icon">🖥️</span>
+          <img src="./icons/monitor.svg" alt="Monitor" className="menu-icon" />
           <div>
-            <span className="menu-text">Select Monitor</span>
+            <span className="menu-text">Pilih Monitor</span>
             <span className="menu-desc">Pilih monitor untuk tampilan</span>
           </div>
         </button>
 
         <button className="context-menu-item reset" onClick={() => handleMenuClick(onReset)}>
-          <span className="menu-icon">🔄</span>
+          <img src="./icons/refresh.svg" alt="Reset" className="menu-icon" />
           <div>
             <span className="menu-text">Reset Kiosk</span>
             <span className="menu-desc">Kembali ke halaman utama</span>
@@ -47,9 +47,9 @@ function ContextMenu({ x, y, onClose, onOpenSettings, onOpenMonitor, onReset, on
         <div className="context-menu-divider"></div>
 
         <button className="context-menu-item exit" onClick={() => handleMenuClick(onExit)}>
-          <span className="menu-icon">🚪</span>
+          <img src="./icons/door.svg" alt="Exit" className="menu-icon" />
           <div>
-            <span className="menu-text">Exit Kiosk</span>
+            <span className="menu-text">Keluar</span>
             <span className="menu-desc">Keluar dari mode kiosk</span>
           </div>
         </button>

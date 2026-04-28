@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test QR Code - APM Rehab Kiosk</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0061ff 0%, #4facfe 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 2rem;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      color: #0061ff;
+      text-align: center;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      color: #4facfe;
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .qr-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    .qr-item {
+      border: 2px solid #4facfe;
+      border-radius: 15px;
+      padding: 1.5rem;
+      text-align: center;
+      background: #f0f7ff;
+    }
+    .qr-item h3 {
+      color: #0061ff;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+    }
+    .qr-code {
+      background: white;
+      padding: 1rem;
+      border-radius: 10px;
+      display: inline-block;
+      margin-bottom: 1rem;
+    }
+    .qr-code img, .qr-code canvas {
+      display: block;
+    }
+    .qr-value {
+      font-family: monospace;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #0061ff;
+      background: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: 2px dashed #4facfe;
+    }
+    .note {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #fff3cd;
+      border-radius: 10px;
+      border: 2px solid #ffc107;
+    }
+    .note h4 {
+      margin: 0 0 0.5rem;
+      color: #856404;
+    }
+    .note p {
+      margin: 0;
+      color: #856404;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>APM Rehab Kiosk</h1>
+    <p>Test QR Code untuk Testing Kamera & QR Scanner</p>
+
+    <div class="qr-list">
+      <div class="qr-item">
+        <h3>QR Code Test 1 - Nama Panjang</h3>
+        <div class="qr-code">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=OPA%2F20260331%2F00001" alt="QR Code" />
+        </div>
+        <div class="qr-value">OPA/20260331/00001</div>
+      </div>
+
+      <div class="qr-item">
+        <h3>QR Code Test 2 - Nama Pendek</h3>
+        <div class="qr-code">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=ABC12345" alt="QR Code" />
+        </div>
+        <div class="qr-value">ABC12345</div>
+      </div>
+
+      <div class="qr-item">
+        <h3>QR Code Test 3 - Angka</h3>
+        <div class="qr-code">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=1234567890" alt="QR Code" />
+        </div>
+        <div class="qr-value">1234567890</div>
+      </div>
+
+      <div class="qr-item">
+        <h3>QR Code Test 4 - Kode RS</h3>
+        <div class="qr-code">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=RS%20REHAB%20-%200012345" alt="QR Code" />
+        </div>
+        <div class="qr-value">RS REHAB - 0012345</div>
+      </div>
+    </div>
+
+    <div class="note">
+      <h4>Cara Test:</h4>
+      <p>
+        1. Buka file HTML ini di browser<br>
+        2. Jalankan APM Rehab Kiosk<br>
+        3. Buka menu Pindai QR Code<br>
+        4. Arahkan kamera ke salah satu QR Code di atas<br>
+        5. Jika QR terbaca, akan muncul notifikasi berhasil
+      </p>
+    </div>
+  </div>
+</body>
+</html>

@@ -39,11 +39,9 @@ function ConfirmDialog({
         tabIndex={0}
       >
         <div className="confirm-dialog-header">
-          <span className="confirm-dialog-icon">
-            {type === 'warning' && '⚠️'}
-            {type === 'danger' && '🚪'}
-            {type === 'info' && 'ℹ️'}
-          </span>
+          {type === 'warning' && <img src="./icons/warning.svg" alt="Warning" className="confirm-dialog-icon" />}
+          {type === 'danger' && <img src="./icons/door.svg" alt="Exit" className="confirm-dialog-icon" />}
+          {type === 'info' && <img src="./icons/info.svg" alt="Info" className="confirm-dialog-icon" />}
           <h3 className="confirm-dialog-title">{title}</h3>
         </div>
 

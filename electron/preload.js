@@ -43,6 +43,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printReceipt: (content) => ipcRenderer.invoke('print-receipt', content),
   printSticker: (content) => ipcRenderer.invoke('print-sticker', content),
 
+  // Print settings
+  getPrintSettings: () => ipcRenderer.invoke('get-print-settings'),
+  savePrintSettings: (settings) => ipcRenderer.invoke('save-print-settings', settings),
+
   // Get available printers
   getPrinters: () => ipcRenderer.invoke('get-printers'),
 
@@ -56,5 +60,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Display/monitor management
   getDisplays: () => ipcRenderer.invoke('get-displays'),
   moveToDisplay: (displayId) => ipcRenderer.invoke('move-to-display', displayId),
-  getCurrentDisplay: () => ipcRenderer.invoke('get-current-display')
+  getCurrentDisplay: () => ipcRenderer.invoke('get-current-display'),
+
+  // External RS API - calls main process to avoid CORS
+  validateAppointmentExternal: (code) => ipcRenderer.invoke('validate-appointment-external', code),
+
+  // Register appointment
+  registerAppointmentExternal: (data) => ipcRenderer.invoke('register-appointment-external', data)
 })

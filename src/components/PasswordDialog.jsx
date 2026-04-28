@@ -57,7 +57,7 @@ function PasswordDialog({
         tabIndex={0}
       >
         <div className="confirm-dialog-header">
-          <span className="confirm-dialog-icon">🔐</span>
+          <img src="./icons/lock.svg" alt="Lock" className="confirm-dialog-icon" />
           <h3 className="confirm-dialog-title">{title}</h3>
         </div>
 
@@ -77,7 +77,7 @@ function PasswordDialog({
 
             {error && (
               <div className="password-error">
-                <span className="error-icon">❌</span>
+                <img src="./icons/x.svg" alt="Error" className="error-icon" />
                 {error}
               </div>
             )}

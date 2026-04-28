@@ -118,7 +118,7 @@ function MonitorPanel({ onClose }) {
       <div className="settings-panel-overlay" onClick={onClose}>
         <div className="settings-panel" onClick={e => e.stopPropagation()}>
           <div className="settings-header">
-            <h2>Select Monitor</h2>
+            <h2>PILIH MONITOR</h2>
             <button className="close-button" onClick={onClose}>✕</button>
           </div>
           <div className="settings-body">
@@ -133,7 +133,7 @@ function MonitorPanel({ onClose }) {
     <div className="settings-panel-overlay" onClick={onClose}>
       <div className="settings-panel" onClick={e => e.stopPropagation()}>
         <div className="settings-header">
-          <h2>Select Monitor</h2>
+          <h2>PILIH MONITOR</h2>
           <button className="close-button" onClick={onClose}>✕</button>
         </div>
 
@@ -145,7 +145,7 @@ function MonitorPanel({ onClose }) {
           )}
 
           <div className="settings-info">
-            <p>Pilih monitor untuk menampilkan aplikasi kiosk:</p>
+            <p>Pilih monitor untuk menampilkan aplikasi kiosk</p>
             <p className="settings-hint">
               Total monitor: <strong>{displays.length}</strong>
             </p>
@@ -166,7 +166,10 @@ function MonitorPanel({ onClose }) {
                     onClick={() => !moving && handleSelectDisplay(display.id)}
                   >
                     <div className="monitor-icon">
-                      {isCurrent ? '✓' : '🖥️'}
+                      {isCurrent
+                        ? <img src="./icons/check.svg" alt="Selected" style={{width: '24px', height: '24px'}} />
+                        : <img src="./icons/monitor.svg" alt="Monitor" style={{width: '24px', height: '24px'}} />
+                      }
                     </div>
                     <div className="monitor-info">
                       <div className="monitor-name">

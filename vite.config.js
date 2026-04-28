@@ -1,36 +1,34 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import electron from 'vite-plugin-electron'
 
 const isDocker = process.env.VITE_DOCKER === 'true'
 
-// Conditionally import electron plugin (not needed in Docker)
 const plugins = [react()]
 
 if (!isDocker) {
-  // Only load electron plugin when NOT in Docker
-  const electron = await import('vite-plugin-electron')
   plugins.push(
-    electron.default([
+    electron([
       {
-        // Main process entry
         entry: 'electron/main.js',
-        vite: {
-          build: {
-            outDir: 'dist-electron',
-            rollupOptions: {
-              external: ['electron']
-            }
-          }
+        onstart(options) {
+          options.startup()
+        }
+      },
+      {
+        entry: 'electron/preload.js',
+        onstart(options) {
+          options.reload()
         }
       }
     ])
   )
 }
 
-// https://vite.dev/config/
 export default defineConfig({
-  base: './', // Use relative paths for file:// protocol compatibility
+  base: './',
+  cacheDir: '/tmp/vite-cache-apm',
   plugins,
   resolve: {
     alias: {
@@ -42,4 +40,3 @@ export default defineConfig({
     port: parseInt(process.env.PORT || '5173')
   }
 })
-
