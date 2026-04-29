@@ -17,7 +17,7 @@ class PrintService {
       Session: data.Session || data.session || '-',
       QueueNo: data.QueueNo || data.queueNo || '-',
       AppointmentTime: data.AppointmentTime || data.appointmentTime || '-',
-      Room: data.Room || data.room || '-',
+      Room: data.Room || data.room || data.RoomName || data.roomName || '-',
       RegistrationDate: data.RegistrationDate || data.date || '-',
       RegistrationTime: data.RegistrationTime || data.time || '-',
       customerType: data.customerType || '-',

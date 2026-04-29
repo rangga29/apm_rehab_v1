@@ -10,8 +10,19 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Load .env for main process
-const envPath = path.join(__dirname, '../.env')
+// Get executable directory (works in both dev and production)
+const getAppPath = () => {
+  if (app.isPackaged) {
+    // In production, use the executable directory
+    return path.dirname(app.getPath('exe'))
+  }
+  // In development, use project root
+  return process.cwd()
+}
+
+// Load .env from executable directory (for win-unpacked)
+const appPath = getAppPath()
+const envPath = path.join(appPath, '.env')
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf8')
   envContent.split('\n').forEach(line => {
@@ -29,13 +40,6 @@ if (fs.existsSync(envPath)) {
 }
 
 // The built directory structure
-// ├─┬─┬ dist
-// │ │ └── index.html
-// │ │
-// │ ├─┬ dist-electron
-// │ │ ├── main.js
-// │ │ └── preload.js
-// │
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged
   ? process.env.DIST
@@ -47,12 +51,14 @@ let win = null
 const PRINTER_CONFIG = {
   receipt: {
     name: process.env.RECEIPT_PRINTER || 'EPSON TM-T82 Receipt',
-    width: 58, // 58mm thermal paper
+    ip: process.env.RECEIPT_PRINTER_IP || '192.168.1.100',
+    port: parseInt(process.env.RECEIPT_PRINTER_PORT || '9100'),
+    width: 80, // 80mm Roll Paper
     silent: true
   },
   sticker: {
     name: process.env.STICKER_PRINTER || 'ZDesigner ZD230-203dpi ZPL',
-    width: 50, // 50mm label
+    width: 50,
     silent: true
   }
 }
@@ -155,10 +161,225 @@ ipcMain.handle('get-printers', async () => {
   return getPrinterList()
 })
 
-ipcMain.handle('print-receipt', async (event, content) => {
-  const copies = Math.max(1, Math.min(parseInt(content._receiptCopies) || 1, 10))
-  delete content._receiptCopies
-  console.log('[PRINT-RECEIPT] Starting, copies:', copies)
+// Format tanggal Indonesia
+function formatDate(dateStr) {
+  if (!dateStr || dateStr === '-' || dateStr === '') return '-'
+  try {
+    const bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+    if (dateStr.includes('-') && dateStr.length === 10) {
+      const [yyyy, mm, dd] = dateStr.split('-')
+      return `${parseInt(dd)} ${bulan[parseInt(mm) - 1]} ${yyyy}`
+    }
+    return dateStr
+  } catch { return dateStr }
+}
+
+// Shared HTML builder for receipt - matches TM-T82 80mm 48-column thermal printer
+// Uses <pre> monospace text for reliable alignment on thermal printers
+function buildReceiptHTMLString(d) {
+  const W = 48   // chars per line — TM-T82 48 Column Mode
+  const LW = 18  // label column width
+
+  // Format a label: value line with word-wrap for long values
+  const fmtLine = (label, value) => {
+    const lbl = label.padEnd(LW)
+    const prefix = lbl + ': '
+    const pLen = prefix.length  // 20
+    const val = String(value || '-')
+    const maxFirst = W - pLen   // 28
+
+    if (val.length <= maxFirst) return prefix + val
+
+    // Word-wrap long values with proper indentation
+    const result = []
+    const indent = ' '.repeat(pLen)
+    let cur = prefix
+    const parts = val.split(/(\s+)/)
+
+    for (const part of parts) {
+      if ((cur + part).length <= W) {
+        cur += part
+      } else {
+        if (cur.trim()) result.push(cur)
+        cur = indent + part.trimStart()
+      }
+    }
+    if (cur.trim()) result.push(cur)
+    return result.join('\n')
+  }
+
+  // Center text within W chars
+  const center = (text) => {
+    const pad = Math.max(0, Math.floor((W - text.length) / 2))
+    return ' '.repeat(pad) + text
+  }
+
+  // Pad right to fill W chars (for no. antrian display)
+  const padRight = (text, len) => String(text).padEnd(len).substring(0, len)
+
+  // Build all lines - with special formatting for title and queue sections
+  // Using HTML tags to simulate larger text
+  const lines = [
+    `<BIG>BUKTI PENDAFTARAN</BIG>`,
+    center(`*${d.barcode_value}*`),
+    '',
+    `<BIG>No. Antrian ${padRight(d.no_antrian, 6)}   Sesi : ${d.sesi}</BIG>`,
+    fmtLine('Tgl/Jam Registrasi', d.tgl_jam_registrasi),
+    fmtLine('No. Rekam Medis', d.no_rekam_medis),
+    fmtLine('Nama Pasien / JK', `${d.nama_pasien} / (${d.jenis_kelamin})`),
+    fmtLine('Tgl. Lahir / Umur', `${d.tgl_lahir} / ${d.umur}`),
+    fmtLine('Unit Pelayanan', d.unit_pelayanan),
+    fmtLine('Nama Dokter', d.nama_dokter),
+    fmtLine('Nama Ruang', d.nama_ruang),
+    fmtLine('Kiriman Dari', d.kiriman_dari),
+    fmtLine('Penjamin Bayar', d.penjamin_bayar),
+    '',
+    '[ ] Farmasi    [ ] Laboratorium    [ ] Radiologi',
+    '',
+    '[ ] Pemakaian  [ ] Lain-Lain ..........',
+    '',
+    fmtLine('Petugas', 'System'),
+    '',
+    '* Mohon Bukti Pendaftaran ini jangan hilang',
+  ]
+
+  const content = lines.join('\n')
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Bukti Pendaftaran</title>
+<style>
+@page { margin: 0; size: 80mm auto; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 2mm 3mm;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1.4;
+  width: 80mm;
+  background: #fff;
+  color: #000;
+  -webkit-print-color-adjust: exact;
+}
+pre {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+}
+BIG {
+  font-size: 16px;
+  font-weight: bold;
+  display: block;
+  text-align: center;
+  margin: 2px 0;
+}
+</style>
+</head>
+<body>
+<pre>${content}</pre>
+</body>
+</html>`
+}
+
+// Generate receipt HTML for fallback
+function generateReceiptHTML(data) {
+  const g = (p, c) => data[p] || data[c] || '-'
+  const barcode_value = g('RegistrationNo', 'registrationNo')
+  const no_antrian = g('QueueNo', 'queueNo')
+  const sesi = g('Session', 'session')
+  const tgl_jam_registrasi = `${formatDate(g('RegistrationDate', 'registrationDate'))} / ${g('RegistrationTime', 'registrationTime')}`
+  const no_rekam_medis = g('MedicalNo', 'medicalNo')
+  const nama_pasien = g('PatientName', 'patientName')
+  const jenis_kelamin = g('Sex', 'sex')
+  const tgl_lahir = formatDate(g('DateOfBirth', 'dateOfBirth'))
+  const umur = g('AgeInYear', 'ageInYear')
+  const unit_pelayanan = g('ServiceUnitName', 'clinicName')
+  const nama_dokter = g('ParamedicName', 'doctorName')
+  const nama_ruang = g('RoomName', 'room')
+  const kiriman_dari = '-'
+  const penjamin_bayar = g('BusinessPartnerName', '-')
+
+  return buildReceiptHTMLString({
+    barcode_value, no_antrian, sesi, tgl_jam_registrasi,
+    no_rekam_medis, nama_pasien, jenis_kelamin, tgl_lahir,
+    umur, unit_pelayanan, nama_dokter, nama_ruang,
+    kiriman_dari, penjamin_bayar
+  })
+}
+
+// Print using ESCPOS (network or USB) with fallback to HTML
+async function printWithESCPOS(printer, data) {
+  const ESCPOS = require('escpos')
+  const escposPrinter = new ESCPOS.Printer(printer)
+
+  // Line helper - 42 chars width for 80mm paper (Font A)
+  // Label column: 18 chars, then " : ", then value
+  const line = (label, value) => {
+    const labelWidth = 18
+    const paddedLabel = label.substring(0, labelWidth).padEnd(labelWidth)
+    return `${paddedLabel}: ${String(value)}`
+  }
+
+  // CENTER mode - Title
+  escposPrinter.font('A').align('CT').size(1, 1)
+  escposPrinter.text('BUKTI PENDAFTARAN')
+
+  // Barcode text (centered)
+  escposPrinter.size(1, 1).text(`*${data.barcode_value}*`)
+  escposPrinter.feed(1)
+
+  // LEFT align for data rows
+  escposPrinter.align('LT')
+  escposPrinter.size(1, 1)
+
+  // No. Antrian (large) + Sesi on the right
+  const antrianStr = String(data.no_antrian).padEnd(6)
+  escposPrinter.text(`No. Antrian    ${antrianStr}Sesi : ${data.sesi}`)
+
+  // Data rows with consistent label-value alignment
+  escposPrinter.text(line('Tgl/Jam Registrasi', data.tgl_jam_registrasi))
+  escposPrinter.text(line('No. Rekam Medis', data.no_rekam_medis))
+  escposPrinter.text(line('Nama Pasien / JK', `${data.nama_pasien} / (${data.jenis_kelamin})`))
+  escposPrinter.text(line('Tgl. Lahir / Umur', `${data.tgl_lahir} / ${data.umur}`))
+  escposPrinter.text(line('Unit Pelayanan', data.unit_pelayanan))
+  escposPrinter.text(line('Nama Dokter', data.nama_dokter))
+  escposPrinter.text(line('Nama Ruang', data.nama_ruang))
+  escposPrinter.text(line('Kiriman Dari', data.kiriman_dari))
+  escposPrinter.text(line('Penjamin Bayar', data.penjamin_bayar))
+
+  escposPrinter.feed(1)
+
+  // Checkboxes
+  escposPrinter.text('[ ] Farmasi   [ ] Laboratorium [ ] Radiologi')
+  escposPrinter.feed(1)
+  escposPrinter.text('[ ] Pemakaian [ ] Lain-Lain ..........')
+
+  escposPrinter.feed(1)
+  escposPrinter.text(line('Petugas', 'System'))
+  escposPrinter.feed(1)
+
+  // Footer
+  escposPrinter.align('LT')
+  escposPrinter.text('* Mohon Bukti Pendaftaran ini jangan hilang')
+
+  escposPrinter.feed(3)
+  escposPrinter.cut()
+}
+
+// Print using HTML (fallback method)
+async function printWithHTML(data, copies) {
+  console.log('[PRINT-RECEIPT] Using HTML print fallback')
+
+  const ESCPOS = require('escpos')
+  const receiptHTML = generateReceiptHTML(data)
 
   const options = {
     silent: true,
@@ -166,34 +387,245 @@ ipcMain.handle('print-receipt', async (event, content) => {
     deviceName: PRINTER_CONFIG.receipt.name
   }
 
-  const receiptHTML = generateReceiptHTML(content)
-  const errors = []
-
   for (let i = 1; i <= copies; i++) {
-    console.log('[PRINT-RECEIPT] Copy', i, '/', copies)
-    try {
+    console.log('[PRINT-RECEIPT] HTML copy', i, '/', copies)
+    await new Promise((resolve, reject) => {
+      const printWindow = new BrowserWindow({
+        show: false,
+        width: 302,
+        height: 800,
+        webPreferences: { nodeIntegration: false, contextIsolation: true }
+      })
+
+      const timeout = setTimeout(() => {
+        printWindow.close()
+        reject(new Error('Print timeout'))
+      }, 15000)
+
+      printWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(receiptHTML))
+        .then(() => {
+          printWindow.webContents.print(options, (success, errorType) => {
+            clearTimeout(timeout)
+            printWindow.close()
+            if (success) {
+              resolve()
+            } else {
+              reject(new Error(`Print gagal (${errorType})`))
+            }
+          })
+        })
+        .catch(err => {
+          clearTimeout(timeout)
+          printWindow.close()
+          reject(err)
+        })
+    })
+    console.log('[PRINT-RECEIPT] HTML copy', i, 'OK')
+  }
+}
+
+ipcMain.handle('print-receipt', async (event, content) => {
+  const copies = Math.max(1, Math.min(parseInt(content._receiptCopies) || 1, 10))
+  delete content._receiptCopies
+  console.log('[PRINT-RECEIPT] Starting, copies:', copies)
+  console.log('[PRINT-RECEIPT] Raw content:', JSON.stringify(content, null, 2))
+
+  // Get field values with multiple fallback options
+  const getVal = (field) => {
+    return content[field] || content[field.toLowerCase()] || content[field.toUpperCase()] || '-'
+  }
+
+  const barcode_value = getVal('RegistrationNo') || getVal('registrationNo') || '-'
+  const no_antrian = getVal('QueueNo') || getVal('queueNo') || '-'
+  const sesi = getVal('Session') || getVal('session') || '-'
+  const regDate = getVal('RegistrationDate') || getVal('registrationDate') || '-'
+  const regTime = getVal('RegistrationTime') || getVal('registrationTime') || '-'
+  const medicalNo = getVal('MedicalNo') || getVal('medicalNo') || '-'
+  const patientName = getVal('PatientName') || getVal('patientName') || '-'
+  const sex = getVal('Sex') || getVal('sex') || '-'
+  const dob = getVal('DateOfBirth') || getVal('dateOfBirth') || '-'
+  const age = getVal('AgeInYear') || getVal('ageInYear') || '-'
+  const clinic = getVal('ServiceUnitName') || getVal('serviceUnitName') || getVal('clinicName') || '-'
+  const doctor = getVal('ParamedicName') || getVal('paramedicName') || getVal('doctorName') || '-'
+  const room = getVal('Room') || getVal('room') || getVal('RoomName') || getVal('roomName') || '-'
+  const penjamin = getVal('BusinessPartnerName') || getVal('businessPartnerName') || '-'
+
+  console.log('[PRINT-RECEIPT] Parsed:', { barcode_value, no_antrian, sesi, medicalNo, patientName, room })
+
+  // ─── Try ESC/POS USB direct printing first ───────────────────────────
+  try {
+    const escpos = require('escpos')
+    escpos.USB = require('escpos-usb')
+
+    // Line helper: label (18 chars padded) + ': ' + value
+    // TM-T82 Font A = 48 chars per line at 80mm
+    const LW = 18
+    const W = 48
+    const fmtLine = (label, value) => {
+      const lbl = label.padEnd(LW)
+      const prefix = lbl + ': '
+      const pLen = prefix.length  // 20
+      const val = String(value || '-')
+      const maxVal = W - pLen     // 28
+      if (val.length <= maxVal) return [prefix + val]
+      // Word-wrap long values
+      const lines = []
+      const indent = ' '.repeat(pLen)
+      let cur = prefix
+      const parts = val.split(/(\s+)/)
+      for (const part of parts) {
+        if ((cur + part).length <= W) {
+          cur += part
+        } else {
+          if (cur.trim()) lines.push(cur)
+          cur = indent + part.trimStart()
+        }
+      }
+      if (cur.trim()) lines.push(cur)
+      return lines
+    }
+
+    for (let copy = 1; copy <= copies; copy++) {
+      console.log(`[PRINT-RECEIPT] ESC/POS USB copy ${copy}/${copies}`)
+      await new Promise((resolve, reject) => {
+        const device = new escpos.USB()
+        const printer = new escpos.Printer(device)
+
+        device.open((err) => {
+          if (err) {
+            console.error('[PRINT-RECEIPT] USB open error:', err.message)
+            reject(err)
+            return
+          }
+
+          try {
+            // ── Title: BUKTI PENDAFTARAN (bold, centered, larger font) ──
+            printer
+              .font('A')
+              .align('CT')
+              .style('B')
+              .size(2, 2)
+              .text('BUKTI PENDAFTARAN')
+              .feed(1)
+
+            // ── Registration Number (centered with asterisk) ──
+            printer
+              .style('NORMAL')
+              .size(1, 1)
+              .text(`*${barcode_value}*`)
+              .feed(1)
+
+            // ── No. Antrian (double size) + Sesi (double size) ──
+            printer
+              .align('LT')
+              .font('A')
+              .style('B')
+              .size(2, 2)
+            printer.print('No. Antrian ')
+            printer.print(String(no_antrian))
+            printer.print('   Sesi : ')
+            printer.text(String(sesi))
+            printer.feed(1)
+
+            // ── Data rows ──
+            printer.align('LT').font('A').size(1, 1)
+
+            const rows = [
+              fmtLine('Tgl/Jam Registrasi', `${regDate} / ${regTime}`),
+              fmtLine('No. Rekam Medis', medicalNo),
+              fmtLine('Nama Pasien / JK', `${patientName} / (${sex})`),
+              fmtLine('Tgl. Lahir / Umur', `${dob} / ${age}`),
+              fmtLine('Unit Pelayanan', clinic),
+              fmtLine('Nama Dokter', doctor),
+              fmtLine('Nama Ruang', room),
+              fmtLine('Kiriman Dari', '-'),
+              fmtLine('Penjamin Bayar', penjamin),
+            ]
+
+            for (const lineArr of rows) {
+              for (const l of lineArr) {
+                printer.text(l)
+              }
+            }
+
+            // ── Checkboxes ──
+            printer.feed(1)
+            printer.text('[ ] Farmasi    [ ] Laboratorium    [ ] Radiologi')
+            printer.feed(1)
+            printer.text('[ ] Pemakaian  [ ] Lain-Lain ..........')
+            printer.feed(1)
+
+            // ── Petugas ──
+            const petugasLines = fmtLine('Petugas', 'System')
+            for (const l of petugasLines) printer.text(l)
+            printer.feed(1)
+
+            // ── Footer ──
+            printer.style('B')
+            printer.text('* Mohon Bukti Pendaftaran ini jangan hilang')
+            printer.style('NORMAL')
+            printer.feed(3)
+            printer.cut()
+
+            printer.close(() => {
+              console.log(`[PRINT-RECEIPT] ESC/POS copy ${copy} OK`)
+              resolve()
+            })
+          } catch (printErr) {
+            console.error('[PRINT-RECEIPT] ESC/POS print error:', printErr)
+            try { printer.close() } catch (_) {}
+            reject(printErr)
+          }
+        })
+      })
+
+      // Small delay between copies
+      if (copy < copies) await new Promise(r => setTimeout(r, 500))
+    }
+
+    console.log('[PRINT-RECEIPT] Done via ESC/POS USB')
+    return { success: true, method: 'escpos-usb' }
+
+  } catch (escposError) {
+    console.warn('[PRINT-RECEIPT] ESC/POS USB failed:', escposError.message)
+    console.log('[PRINT-RECEIPT] Falling back to HTML print method')
+
+    // ─── Fallback: HTML print ────────────────────────────────────────────
+    const receiptHTML = generateReceiptHTMLWithData(content)
+
+    const options = {
+      silent: true,
+      printBackground: true,
+      deviceName: PRINTER_CONFIG.receipt.name,
+      margins: { marginType: 'none' },
+      pageSize: { width: 80000, height: 297000 }
+    }
+
+    for (let i = 1; i <= copies; i++) {
+      console.log('[PRINT-RECEIPT] HTML fallback copy', i, '/', copies)
       await new Promise((resolve, reject) => {
         const printWindow = new BrowserWindow({
           show: false,
+          width: 302,
+          height: 800,
           webPreferences: { nodeIntegration: false, contextIsolation: true }
         })
 
         const timeout = setTimeout(() => {
           printWindow.close()
           reject(new Error('Print timeout'))
-        }, 15000)
+        }, 30000)
 
         printWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(receiptHTML))
           .then(() => {
-            printWindow.webContents.print(options, (success, errorType) => {
-              clearTimeout(timeout)
-              printWindow.close()
-              if (success) {
-                resolve()
-              } else {
-                reject(new Error(`Print gagal (${errorType})`))
-              }
-            })
+            setTimeout(() => {
+              printWindow.webContents.print(options, (success, errorType) => {
+                clearTimeout(timeout)
+                printWindow.close()
+                if (success) resolve()
+                else reject(new Error(`Print gagal (${errorType})`))
+              })
+            }, 1000)
           })
           .catch(err => {
             clearTimeout(timeout)
@@ -201,21 +633,48 @@ ipcMain.handle('print-receipt', async (event, content) => {
             reject(err)
           })
       })
-      console.log('[PRINT-RECEIPT] Copy', i, 'OK')
-    } catch (err) {
-      console.error('[PRINT-RECEIPT] Copy', i, 'failed:', err.message)
-      errors.push(err)
     }
-    // Small delay between copies
-    if (i < copies) await new Promise(r => setTimeout(r, 500))
+
+    console.log('[PRINT-RECEIPT] Done via HTML fallback')
+    return { success: true, method: 'html-fallback' }
+  }
+})
+
+// Generate HTML with data passed directly
+function generateReceiptHTMLWithData(data) {
+  console.log('[PRINT-RECEIPT] generateReceiptHTMLWithData input:', JSON.stringify(data, null, 2))
+
+  // Get field values with multiple fallback options
+  const getVal = (field) => {
+    return data[field] || data[field.toLowerCase()] || data[field.toUpperCase()] || '-'
   }
 
-  if (errors.length === copies) {
-    throw new Error('Gagal mencetak struk')
-  }
-  console.log('[PRINT-RECEIPT] Done')
-  return { success: true }
-})
+  const barcode_value = getVal('RegistrationNo') || getVal('registrationNo') || getVal('registrationno') || '-'
+  const no_antrian = getVal('QueueNo') || getVal('queueNo') || getVal('queueno') || '-'
+  const sesi = getVal('Session') || getVal('session') || '-'
+  const regDate = getVal('RegistrationDate') || getVal('registrationDate') || getVal('registrationdate') || '-'
+  const regTime = getVal('RegistrationTime') || getVal('registrationTime') || getVal('registrationtime') || '-'
+  const tgl_jam_registrasi = `${regDate} / ${regTime}`
+  const medicalNo = getVal('MedicalNo') || getVal('medicalNo') || getVal('medicalno') || '-'
+  const patientName = getVal('PatientName') || getVal('patientName') || getVal('patientname') || '-'
+  const sex = getVal('Sex') || getVal('sex') || '-'
+  const dob = getVal('DateOfBirth') || getVal('dateOfBirth') || getVal('dateofbirth') || '-'
+  const age = getVal('AgeInYear') || getVal('ageInYear') || getVal('ageinyear') || '-'
+  const clinic = getVal('ServiceUnitName') || getVal('serviceUnitName') || getVal('clinicName') || getVal('clinicname') || '-'
+  const doctor = getVal('ParamedicName') || getVal('paramedicName') || getVal('doctorName') || getVal('doctorname') || '-'
+  const room = getVal('Room') || getVal('room') || getVal('RoomName') || getVal('roomName') || '-'
+  const penjamin = getVal('BusinessPartnerName') || getVal('businessPartnerName') || '-'
+
+  console.log('[PRINT-RECEIPT] Parsed values:', { barcode_value, no_antrian, sesi, medicalNo, patientName, room })
+
+  return buildReceiptHTMLString({
+    barcode_value, no_antrian, sesi, tgl_jam_registrasi,
+    no_rekam_medis: medicalNo, nama_pasien: patientName,
+    jenis_kelamin: sex, tgl_lahir: dob, umur: age,
+    unit_pelayanan: clinic, nama_dokter: doctor,
+    nama_ruang: room, kiriman_dari: '-', penjamin_bayar: penjamin
+  })
+}
 
 // Helper: run a command and return { stdout, stderr, exitCode }
 function runCmd(cmd, timeout = 15000) {
@@ -297,7 +756,7 @@ ipcMain.handle('print-sticker', async (event, content) => {
   }
 
   if (!workingShare) {
-    try { fs.unlinkSync(tmpFile) } catch (_) {}
+    try { fs.unlinkSync(tmpFile) } catch (_) { }
     throw new Error(
       `Gagal cetak stiker. Pastikan printer ZDesigner ZD230 sudah di-share.\n` +
       `Solusi: Control Panel → Devices and Printers → Right-click ZDesigner ZD230 → ` +
@@ -316,7 +775,7 @@ ipcMain.handle('print-sticker', async (event, content) => {
       `cmd /c copy /B "${copyFile}" "${dest}"`,
       8000
     )
-    try { fs.unlinkSync(copyFile) } catch (_) {}
+    try { fs.unlinkSync(copyFile) } catch (_) { }
     if (exitCode !== 0 || !/copied/i.test(stdout.trim())) {
       throw new Error(`Gagal cetak stiker copy ${i}`)
     }
@@ -325,7 +784,7 @@ ipcMain.handle('print-sticker', async (event, content) => {
     if (i < 3) await new Promise(r => setTimeout(r, 300))
   }
 
-  try { fs.unlinkSync(tmpFile) } catch (_) {}
+  try { fs.unlinkSync(tmpFile) } catch (_) { }
 
   console.log('[PRINT-STICKER] All', stickerCopies, 'copies sent via', workingShare)
   return { success: true }
@@ -726,123 +1185,6 @@ ipcMain.handle('get-current-display', async () => {
     return { success: false, error: error.message }
   }
 })
-
-// HTML Generators for printing
-function generateReceiptHTML(data) {
-  // Helper get field (support both PascalCase from API and camelCase)
-  const g = (p, c) => data[p] || data[c] || '-'
-
-  // Format tanggal Indonesia
-  const formatDate = (dateStr) => {
-    if (!dateStr || dateStr === '-') return '-'
-    try {
-      const bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
-      if (dateStr.includes('-') && dateStr.length === 10) {
-        const [yyyy, mm, dd] = dateStr.split('-')
-        return `${parseInt(dd)} ${bulan[parseInt(mm) - 1]} ${yyyy}`
-      }
-      return dateStr
-    } catch { return dateStr }
-  }
-
-  const opNo = g('RegistrationNo', 'registrationNo')
-  const opaNo = g('AppointmentNo', 'appointmentNo')
-  const noRM = g('MedicalNo', 'medicalNo')
-  const nama = g('PatientName', 'patientName')
-  const tglLahir = formatDate(g('DateOfBirth', 'dateOfBirth'))
-  const poli = g('ServiceUnitName', 'clinicName')
-  const dokter = g('ParamedicName', 'doctorName')
-  const penjamin = g('BusinessPartnerName', '-')
-  const sesi = g('Session', 'session')
-  const noAntrian = g('QueueNo', 'queueNo')
-  const waktu = g('AppointmentTime', 'appointmentTime')
-  const ruang = g('Room', 'room')
-  const tglRegistrasi = formatDate(g('RegistrationDate', 'date'))
-  const jamRegistrasi = g('RegistrationTime', 'time')
-  const kategori = g('customerType', 'CustomerType', '-')
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Courier New', monospace;
-      font-size: 11px;
-      width: 58mm;
-      padding: 4mm;
-    }
-    .header {
-      text-align: center;
-      border-bottom: 1px dashed #000;
-      padding-bottom: 4px;
-      margin-bottom: 8px;
-    }
-    .header h1 { font-size: 14px; margin-bottom: 2px; }
-    .header p { font-size: 10px; }
-    .section { margin: 6px 0; }
-    .row { display: flex; justify-content: space-between; margin: 3px 0; font-size: 10px; }
-    .label { font-weight: bold; }
-    .big-code {
-      text-align: center;
-      font-size: 16px;
-      font-weight: bold;
-      border: 2px solid #000;
-      padding: 6px;
-      margin: 8px 0;
-    }
-    .footer {
-      text-align: center;
-      border-top: 1px dashed #000;
-      padding-top: 4px;
-      margin-top: 8px;
-      font-size: 9px;
-    }
-    .divider { border-top: 1px dashed #000; margin: 6px 0; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>BUKTI PENDAFTARAN</h1>
-    <p>APM REHABILITASI MEDIK</p>
-  </div>
-
-  <div class="section">
-    <div class="row"><span class="label">No. Registrasi:</span><span>${opNo}</span></div>
-    <div class="row"><span class="label">No. Janji Temu:</span><span>${opaNo}</span></div>
-    <div class="row"><span class="label">No. RM:</span><span>${noRM}</span></div>
-    <div class="row"><span class="label">Nama Pasien:</span><span>${nama}</span></div>
-    <div class="row"><span class="label">Tgl. Lahir:</span><span>${tglLahir}</span></div>
-    <div class="row"><span class="label">Kategori:</span><span>${kategori}</span></div>
-  </div>
-
-  <div class="divider"></div>
-
-  <div class="section">
-    <div class="row"><span class="label">Poliklinik:</span><span>${poli}</span></div>
-    <div class="row"><span class="label">Dokter:</span><span>${dokter}</span></div>
-    <div class="row"><span class="label">Penjamin Bayar:</span><span>${penjamin}</span></div>
-    <div class="row"><span class="label">Sesi / No. Antrian:</span><span>Sesi ${sesi} / ${noAntrian}</span></div>
-    <div class="row"><span class="label">Waktu:</span><span>${waktu}</span></div>
-    <div class="row"><span class="label">Ruangan:</span><span>${ruang}</span></div>
-  </div>
-
-  <div class="divider"></div>
-
-  <div class="section">
-    <div class="row"><span class="label">Tgl. Registrasi:</span><span>${tglRegistrasi}</span></div>
-    <div class="row"><span class="label">Jam Registrasi:</span><span>${jamRegistrasi}</span></div>
-  </div>
-
-  <div class="footer">
-    <p>Simpan struk ini sebagai bukti pendaftaran</p>
-  </div>
-</body>
-</html>
-  `
-}
 
 function generateStickerHTML(data) {
   // Helper get field (support both PascalCase from API and camelCase)
