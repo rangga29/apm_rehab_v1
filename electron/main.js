@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, screen, desktopCapturer } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { exec } from 'node:child_process'
+import { exec, execSync } from 'node:child_process'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 
