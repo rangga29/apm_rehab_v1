@@ -545,48 +545,62 @@ ipcMain.handle('print-receipt', async (event, content) => {
   fs.writeFileSync(tmpFile, printData)
   console.log('[PRINT-RECEIPT] Binary file:', tmpFile, 'size:', printData.length)
 
-  // Get printer port
-  let portName = 'USB002'
+  // Get printer name for print command
+  let printerName = ''
   try {
-    const cmd = `powershell -Command "(Get-Printer | Where-Object {$_.Name -like '*TM-T82*'}).PortName | Select-Object -First 1"`
-    const result = execSync(cmd, { timeout: 5000 }).toString().trim()
-    if (result) portName = result
-    console.log('[PRINT-RECEIPT] Found port:', portName)
+    const cmd = `powershell -Command "(Get-Printer | Where-Object {\$_.Name -like '*TM-T82*'}).Name | Select-Object -First 1"`
+    printerName = execSync(cmd, { timeout: 5000 }).toString().trim()
+    console.log('[PRINT-RECEIPT] Found printer:', printerName)
   } catch (e) {
-    console.log('[PRINT-RECEIPT] Port detection failed, using USB002')
+    console.log('[PRINT-RECEIPT] Printer detection failed')
   }
 
-  // Try ESDPRT001
+  // Method 1: Use Windows print spooler with printer name
+  if (printerName) {
+    try {
+      console.log('[PRINT-RECEIPT] Trying print spooler with printer:', printerName)
+      execSync(`powershell -Command "Start-Process -FilePath '${tmpFile}' -Verb PrintTo -ArgumentList '${printerName}' -WindowStyle Hidden"`, { timeout: 15000, windowsHide: true })
+      console.log('[PRINT-RECEIPT] Print spooler OK')
+      fs.unlinkSync(tmpFile)
+      return { success: true }
+    } catch (e) {
+      console.log('[PRINT-RECEIPT] Print spooler failed:', e.message)
+    }
+  }
+
+  // Method 2: Use PowerShell to write to ESDPRT001 port
   try {
-    console.log('[PRINT-RECEIPT] Trying ESDPRT001...')
-    execSync(`copy /B "${tmpFile}" "\\\\.\\ESDPRT001"`, { stdio: 'ignore', timeout: 10000 })
-    console.log('[PRINT-RECEIPT] ESDPRT001 OK')
+    const escapedPath = tmpFile.replace(/\\/g, '\\\\')
+    const psCmd = `\$data = [System.IO.File]::ReadAllBytes('${escapedPath}'); \$fs = [System.IO.File]::Create('\\\\.\\\\ESDPRT001'); \$fs.Write(\$data, 0, \$data.Length); \$fs.Close()`
+    console.log('[PRINT-RECEIPT] Trying PowerShell to ESDPRT001...')
+    execSync(`powershell -Command "${psCmd}"`, { timeout: 15000, windowsHide: true })
+    console.log('[PRINT-RECEIPT] PowerShell to ESDPRT001 OK')
     fs.unlinkSync(tmpFile)
     return { success: true }
   } catch (e) {
-    console.log('[PRINT-RECEIPT] ESDPRT001 failed:', e.message)
+    console.log('[PRINT-RECEIPT] PowerShell to ESDPRT001 failed:', e.message)
   }
 
-  // Try USB002
+  // Method 3: Try copy command to ESDPRT001
   try {
-    console.log('[PRINT-RECEIPT] Trying USB002...')
-    execSync(`copy /B "${tmpFile}" "\\\\.\\USB002"`, { stdio: 'ignore', timeout: 10000 })
-    console.log('[PRINT-RECEIPT] USB002 OK')
+    console.log('[PRINT-RECEIPT] Trying copy to ESDPRT001...')
+    execSync(`cmd /c copy /B "${tmpFile}" "\\\\.\\ESDPRT001"`, { stdio: 'ignore', timeout: 10000, windowsHide: true })
+    console.log('[PRINT-RECEIPT] Copy to ESDPRT001 OK')
     fs.unlinkSync(tmpFile)
     return { success: true }
   } catch (e) {
-    console.log('[PRINT-RECEIPT] USB002 failed:', e.message)
+    console.log('[PRINT-RECEIPT] Copy to ESDPRT001 failed:', e.message)
   }
 
-  // Try detected port
+  // Method 4: Try type command
   try {
-    console.log('[PRINT-RECEIPT] Trying', portName, '...')
-    execSync(`copy /B "${tmpFile}" "\\\\.\\${portName}"`, { stdio: 'ignore', timeout: 10000 })
-    console.log('[PRINT-RECEIPT]', portName, 'OK')
+    console.log('[PRINT-RECEIPT] Trying type command...')
+    execSync(`cmd /c type "${tmpFile}" > \\\\.\\ESDPRT001`, { stdio: 'ignore', timeout: 10000, windowsHide: true })
+    console.log('[PRINT-RECEIPT] Type command OK')
     fs.unlinkSync(tmpFile)
     return { success: true }
   } catch (e) {
-    console.log('[PRINT-RECEIPT]', portName, 'failed:', e.message)
+    console.log('[PRINT-RECEIPT] Type command failed:', e.message)
   }
 
   fs.unlinkSync(tmpFile)
