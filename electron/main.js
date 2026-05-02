@@ -544,137 +544,179 @@ ipcMain.handle('print-receipt', async (event, content) => {
     for (let copy = 1; copy <= copies; copy++) {
       console.log(`[PRINT-RECEIPT] ESC/POS USB copy ${copy}/${copies}`)
       await new Promise((resolve, reject) => {
-        const escpos = require('escpos')
-        const USB = escpos.USB
-
-        // EPSON TM-T82 typical VID:PID
-        // Try to find printer by VID/PID, or auto-detect
-        let device
-        try {
-          // First try with VID 0x04b8 (Epson) and PID 0x0202 (TM-T82)
-          device = new USB(0x04b8, 0x0202)
-        } catch (e1) {
-          console.log('[PRINT-RECEIPT] Printer not found by VID/PID, trying auto-detect...')
-          try {
-            const printers = USB.findPrinter()
-            console.log('[PRINT-RECEIPT] Available USB printers:', printers.length)
-            if (printers.length > 0) {
-              device = new USB(printers[0])
-            } else {
-              reject(new Error('Tidak ada printer USB ditemukan. Pastikan printer terhubung dan menyala.'))
-              return
-            }
-          } catch (e2) {
-            console.error('[PRINT-RECEIPT] Auto-detect failed:', e2.message)
-            reject(new Error('Printer tidak ditemukan. Pastikan printer terhubung via USB dan drivers sudah terinstall.'))
-            return
-          }
+        // ESC/POS commands
+        const ESC = {
+          // Initialize printer
+          INIT: Buffer.from([0x1B, 0x40]),
+          // Text formatting
+          BOLD_ON: Buffer.from([0x1B, 0x45, 0x01]),
+          BOLD_OFF: Buffer.from([0x1B, 0x45, 0x00]),
+          // Font size
+          SIZE_NORMAL: Buffer.from([0x1B, 0x21, 0x00]),
+          SIZE_DOUBLE: Buffer.from([0x1B, 0x21, 0x30]), // Double width only
+          SIZE_DOUBLE_ALL: Buffer.from([0x1B, 0x21, 0x11]),
+          // Alignment
+          ALIGN_CT: Buffer.from([0x1B, 0x61, 0x01]),
+          ALIGN_LT: Buffer.from([0x1B, 0x61, 0x00]),
+          ALIGN_RT: Buffer.from([0x1B, 0x61, 0x02]),
+          // Feed and cut
+          FEED: Buffer.from([0x1B, 0x64, 0x03]),
+          CUT: Buffer.from([0x1D, 0x56, 0x00]),
+          LF: Buffer.from([0x0A]),
         }
 
-        const printer = new escpos.Printer(device)
-
-        device.open((err) => {
-          if (err) {
-            console.error('[PRINT-RECEIPT] USB open error:', err.message)
-            reject(err)
-            return
+        // Format a line: label (18 chars) + ': ' + value
+        const fmtLine = (label, value) => {
+          const lbl = label.padEnd(18)
+          const val = String(value || '-')
+          const line = `${lbl}: ${val}`
+          // Wrap if too long (48 chars max for 80mm)
+          if (line.length > 48) {
+            const prefix = `${lbl}: `
+            const indent = ' '.repeat(prefix.length)
+            const maxLen = 48
+            const first = line.substring(0, maxLen)
+            const rest = indent + line.substring(maxLen)
+            return `${first}\n${rest}`
           }
+          return line
+        }
 
-          try {
-            // ── Title: BUKTI PENDAFTARAN (FontA12, double size ~17pt) ──
-            printer
-              .font('A')
-              .align('CT')
-              .style('B')
-              .size(2, 1)  // Double width, normal height for 17pt equivalent
-              .text('BUKTI PENDAFTARAN')
-              .feed(1)
+        // Build receipt data
+        const title = 'BUKTI PENDAFTARAN'
+        const regNo = `*${barcode_value}*`
+        const queueLine = `No. Antrian : ${no_antrian}  Sesi : ${sesi}`
 
-            // ── Registration Number (centered with asterisk, normal size) ──
-            printer
-              .style('NORMAL')
-              .size(1, 1)
-              .align('CT')
-              .text(`*${barcode_value}*`)
-              .feed(1)
+        const dataRows = [
+          fmtLine('Tgl/Jam Registrasi', tgl_jam_registrasi),
+          fmtLine('No. Rekam Medis', medicalNo),
+          fmtLine('Nama Pasien / JK', `${patientName} / (${sex})`),
+          fmtLine('Tgl. Lahir / Umur', `${dobFormatted} / ${ageStr}`),
+          fmtLine('Unit Pelayanan', clinic),
+          fmtLine('Nama Dokter', doctor),
+          fmtLine('Nama Ruang', room),
+          fmtLine('Kiriman Dari', '-'),
+          fmtLine('Penjamin Bayar', penjamin),
+        ]
 
-            // ── No. Antrian + Sesi (FontA12, double size ~17pt) ──
-            printer
-              .align('LT')
-              .font('A')
-              .style('B')
-              .size(2, 1)  // Double width for 17pt equivalent
-            printer.print('No. Antrian : ')
-            printer.text(String(no_antrian))
-            printer.print('  Sesi : ')
-            printer.text(String(sesi))
-            printer.feed(1)
+        const checkboxes = '[ ] Farmasi  [ ] Laboratorium  [ ] Radiologi'
+        const checkboxes2 = '[ ] Pemakaian  [ ] Lain-Lain ..........'
+        const petugas = fmtLine('Petugas', 'System')
+        const footer = '* Mohon Bukti Pendaftaran ini jangan hilang'
 
-            // ── Data rows (FontA11, normal size ~8.5pt) ──
-            printer.align('LT').font('A').size(1, 1).style('NORMAL')
+        // Combine all text lines
+        const textLines = [
+          title, regNo, '', queueLine, '',
+          ...dataRows, '',
+          checkboxes, '', checkboxes2, '',
+          petugas, '', footer
+        ]
 
-            const rows = [
-              fmtLine('Tgl/Jam Registrasi', tgl_jam_registrasi),
-              fmtLine('No. Rekam Medis', medicalNo),
-              fmtLine('Nama Pasien / JK', `${patientName} / (${sex})`),
-              fmtLine('Tgl. Lahir / Umur', `${dobFormatted} / ${ageStr}`),
-              fmtLine('Unit Pelayanan', clinic),
-              fmtLine('Nama Dokter', doctor),
-              fmtLine('Nama Ruang', room),
-              fmtLine('Kiriman Dari', '-'),
-              fmtLine('Penjamin Bayar', penjamin),
-            ]
+        // Create raw ESC/POS data
+        const chunks = []
 
-            for (const lineArr of rows) {
-              for (const l of lineArr) {
-                printer.text(l)
+        // Initialize
+        chunks.push(ESC.INIT)
+
+        // Title - centered, bold, double width
+        chunks.push(ESC.ALIGN_CT)
+        chunks.push(ESC.BOLD_ON)
+        chunks.push(ESC.SIZE_DOUBLE)
+        chunks.push(Buffer.from(title + '\n', 'utf8'))
+
+        // Registration number - centered, normal
+        chunks.push(ESC.SIZE_NORMAL)
+        chunks.push(ESC.BOLD_OFF)
+        chunks.push(Buffer.from(regNo + '\n', 'utf8'))
+
+        // Queue line - left, bold, double width
+        chunks.push(ESC.ALIGN_LT)
+        chunks.push(ESC.BOLD_ON)
+        chunks.push(ESC.SIZE_DOUBLE)
+        chunks.push(Buffer.from(queueLine + '\n', 'utf8'))
+
+        // Data rows - left, normal
+        chunks.push(ESC.SIZE_NORMAL)
+        chunks.push(ESC.BOLD_OFF)
+        for (const line of dataRows) {
+          chunks.push(Buffer.from(line + '\n', 'utf8'))
+        }
+
+        // Checkboxes
+        chunks.push(Buffer.from('\n' + checkboxes + '\n\n', 'utf8'))
+        chunks.push(Buffer.from(checkboxes2 + '\n\n', 'utf8'))
+
+        // Petugas
+        chunks.push(Buffer.from(petugas + '\n\n', 'utf8'))
+
+        // Footer - bold
+        chunks.push(ESC.BOLD_ON)
+        chunks.push(Buffer.from(footer + '\n', 'utf8'))
+        chunks.push(ESC.BOLD_OFF)
+
+        // Feed and cut
+        chunks.push(ESC.FEED)
+        chunks.push(ESC.CUT)
+
+        // Combine all chunks
+        const printData = Buffer.concat(chunks)
+
+        // Write directly to USB using Windows commands
+        const { exec } = require('node:child_process')
+        const os = require('node:os')
+        const fs = require('node:fs')
+        const path = require('node:path')
+
+        const tmpFile = path.join(os.tmpdir(), `print_${Date.now()}.bin`)
+        fs.writeFileSync(tmpFile, printData)
+
+        // Try to find and print to USB printer
+        const findPrinterCmd = `powershell -Command "Get-Printer | Where-Object {$_.PortName -like 'USB*'} | Select-Object -First 1 -ExpandProperty PortName"`
+        exec(findPrinterCmd, { timeout: 5000 }, (err, stdout) => {
+          const portName = stdout.trim()
+          console.log('[PRINT-RECEIPT] Found USB port:', portName)
+
+          if (!portName) {
+            // Try alternative - copy to USB port directly
+            const copyCmd = `cmd /c copy /B "${tmpFile}" "\\\\.\\USB001"`
+            exec(copyCmd, { timeout: 10000 }, (err2, stdout2) => {
+              try { fs.unlinkSync(tmpFile) } catch (_) {}
+              if (err2) {
+                console.error('[PRINT-RECEIPT] Direct USB copy failed:', err2.message)
+                reject(new Error('Printer USB tidak ditemukan. Pastikan printer terhubung dan drivers sudah terinstall.'))
+              } else {
+                console.log('[PRINT-RECEIPT] Print OK via direct USB')
+                resolve()
               }
-            }
-
-            // ── Checkboxes - properly aligned ──
-            printer.feed(1)
-            printer.text('[ ] Farmasi  [ ] Laboratorium  [ ] Radiologi')
-            printer.feed(1)
-            printer.text('[ ] Pemakaian  [ ] Lain-Lain ..........')
-            printer.feed(1)
-
-            // ── Petugas ──
-            const petugasLines = fmtLine('Petugas', 'System')
-            for (const l of petugasLines) printer.text(l)
-            printer.feed(1)
-
-            // ── Footer ──
-            printer.style('B')
-            printer.text('* Mohon Bukti Pendaftaran ini jangan hilang')
-            printer.style('NORMAL')
-            printer.feed(3)
-            printer.cut()
-
-            printer.close(() => {
-              console.log(`[PRINT-RECEIPT] ESC/POS copy ${copy} OK`)
-              resolve()
             })
-          } catch (printErr) {
-            console.error('[PRINT-RECEIPT] ESC/POS print error:', printErr)
-            try { printer.close() } catch (_) {}
-            reject(printErr)
+          } else {
+            // Write to found USB port
+            const copyCmd = `cmd /c copy /B "${tmpFile}" "\\\\.\\${portName}"`
+            exec(copyCmd, { timeout: 10000 }, (err2, stdout2) => {
+              try { fs.unlinkSync(tmpFile) } catch (_) {}
+              if (err2) {
+                console.error('[PRINT-RECEIPT] Print failed:', err2.message)
+                reject(new Error('Gagal mencetak. Pastikan printer menyala dan kertas tersedia.'))
+              } else {
+                console.log('[PRINT-RECEIPT] Print OK')
+                resolve()
+              }
+            })
           }
         })
       })
 
-      // Small delay between copies
-      if (copy < copies) await new Promise(r => setTimeout(r, 500))
+      // Close for loop
     }
 
-    console.log('[PRINT-RECEIPT] Done via ESC/POS USB')
-    return { success: true, method: 'escpos-usb' }
-
-  } catch (escposError) {
-    // Only ESC/POS printing - no HTML fallback
-    console.error('[PRINT-RECEIPT] ESC/POS USB failed:', escposError.message)
-    throw new Error(`Gagal cetak struk: ${escposError.message}. Pastikan printer USB terhubung dan coba lagi.`)
+    console.log('[PRINT-RECEIPT] Done via ESC/POS print')
+    return { success: true, method: 'raw-escpos' }
+  } catch (err) {
+    console.error('[PRINT-RECEIPT] Print error:', err.message)
+    throw new Error(`Gagal cetak struk: ${err.message}`)
   }
 })
+
 
 // Generate HTML with data passed directly
 function generateReceiptHTMLWithData(data) {
