@@ -644,56 +644,9 @@ ipcMain.handle('print-receipt', async (event, content) => {
     return { success: true, method: 'escpos-usb' }
 
   } catch (escposError) {
-    console.warn('[PRINT-RECEIPT] ESC/POS USB failed:', escposError.message)
-    console.log('[PRINT-RECEIPT] Falling back to HTML print method')
-
-    // ─── Fallback: HTML print ────────────────────────────────────────────
-    const receiptHTML = generateReceiptHTMLWithData(content)
-
-    const options = {
-      silent: true,
-      printBackground: true,
-      deviceName: PRINTER_CONFIG.receipt.name,
-      margins: { marginType: 'none' },
-      pageSize: { width: 80000, height: 297000 }
-    }
-
-    for (let i = 1; i <= copies; i++) {
-      console.log('[PRINT-RECEIPT] HTML fallback copy', i, '/', copies)
-      await new Promise((resolve, reject) => {
-        const printWindow = new BrowserWindow({
-          show: false,
-          width: 302,
-          height: 800,
-          webPreferences: { nodeIntegration: false, contextIsolation: true }
-        })
-
-        const timeout = setTimeout(() => {
-          printWindow.close()
-          reject(new Error('Print timeout'))
-        }, 30000)
-
-        printWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(receiptHTML))
-          .then(() => {
-            setTimeout(() => {
-              printWindow.webContents.print(options, (success, errorType) => {
-                clearTimeout(timeout)
-                printWindow.close()
-                if (success) resolve()
-                else reject(new Error(`Print gagal (${errorType})`))
-              })
-            }, 1000)
-          })
-          .catch(err => {
-            clearTimeout(timeout)
-            printWindow.close()
-            reject(err)
-          })
-      })
-    }
-
-    console.log('[PRINT-RECEIPT] Done via HTML fallback')
-    return { success: true, method: 'html-fallback' }
+    // Only ESC/POS printing - no HTML fallback
+    console.error('[PRINT-RECEIPT] ESC/POS USB failed:', escposError.message)
+    throw new Error(`Gagal cetak struk: ${escposError.message}. Pastikan printer USB terhubung dan coba lagi.`)
   }
 })
 
