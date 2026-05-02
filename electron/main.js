@@ -435,331 +435,162 @@ async function printWithHTML(data, copies) {
 }
 
 ipcMain.handle('print-receipt', async (event, content) => {
+  console.log('[PRINT-RECEIPT] print-receipt called!')
+  console.log('[PRINT-RECEIPT] Content keys:', Object.keys(content))
+
   const copies = Math.max(1, Math.min(parseInt(content._receiptCopies) || 1, 10))
   delete content._receiptCopies
-  console.log('[PRINT-RECEIPT] Starting, copies:', copies)
-  console.log('[PRINT-RECEIPT] Raw content:', JSON.stringify(content, null, 2))
 
-  // Get field values with multiple fallback options
-  const getVal = (field) => {
-    return content[field] || content[field.toLowerCase()] || content[field.toUpperCase()] || '-'
-  }
+  const getVal = (field) => content[field] || content[field.toLowerCase()] || content[field.toUpperCase()] || '-'
 
-  const barcode_value = getVal('RegistrationNo') || getVal('registrationNo') || '-'
-  const no_antrian = getVal('QueueNo') || getVal('queueNo') || '-'
-  const sesi = getVal('Session') || getVal('session') || '-'
-  const regDate = getVal('RegistrationDate') || getVal('registrationDate') || '-'
-  const regTime = getVal('RegistrationTime') || getVal('registrationTime') || '-'
+  const barcode_value = getVal('RegistrationNo') || '-'
+  const no_antrian = getVal('QueueNo') || '-'
+  const sesi = getVal('Session') || '-'
+  const regDate = getVal('RegistrationDate') || '-'
+  const regTime = getVal('RegistrationTime') || '-'
   const tgl_jam_registrasi = `${formatDate(regDate)} / ${regTime}`
-  const medicalNo = getVal('MedicalNo') || getVal('medicalNo') || '-'
-  const patientName = getVal('PatientName') || getVal('patientName') || '-'
-
-  // Convert sex to L/P format
+  const medicalNo = getVal('MedicalNo') || '-'
+  const patientName = getVal('PatientName') || '-'
+  
   let sex = getVal('Sex') || getVal('sex') || '-'
   if (sex !== '-' && sex.length > 1) {
     const s = String(sex).toUpperCase()
     if (s === 'LAKI-LAKI' || s === 'LAKI LAKI' || s === 'MALE') sex = 'L'
     else if (s === 'PEREMPUAN' || s === 'FEMALE') sex = 'P'
   }
-
-  const dob = getVal('DateOfBirth') || getVal('dateOfBirth') || '-'
+  
+  const dob = getVal('DateOfBirth') || '-'
   const dobFormatted = formatDate(dob)
-
-  // Calculate age in Yy Mm Dd format from registration date
-  let ageStr = getVal('AgeInYear') || getVal('ageInYear') || '-'
-  if (dob !== '-' && regDate !== '-' && ageStr === '-') {
-    try {
-      let dobDate, regDateObj
-      if (dob.includes('-') && dob.split('-')[0].length === 4) {
-        dobDate = new Date(dob)
-      } else if (dob.includes('-')) {
-        const [d, m, y] = dob.split('-')
-        dobDate = new Date(`${y}-${m}-${d}`)
-      }
-      if (regDate.includes('-') && regDate.split('-')[0].length === 4) {
-        regDateObj = new Date(regDate)
-      } else if (regDate.includes('-')) {
-        const [d, m, y] = regDate.split('-')
-        regDateObj = new Date(`${y}-${m}-${d}`)
-      }
-      if (dobDate && regDateObj && !isNaN(dobDate) && !isNaN(regDateObj)) {
-        const diffTime = Math.abs(regDateObj - dobDate)
-        const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-        const years = Math.floor(totalDays / 365)
-        const months = Math.floor((totalDays % 365) / 30)
-        const days = totalDays - (years * 365) - (months * 30)
-        ageStr = `${years}y ${months}m ${days}d`
-      }
-    } catch (e) {}
-  }
-
-  // Get service unit with session suffix
-  let clinic = getVal('ServiceUnitName') || getVal('serviceUnitName') || getVal('clinicName') || '-'
-  const sessionName = getVal('SessionName') || getVal('sessionName') || ''
+  
+  let ageStr = getVal('AgeInYear') || '-'
+  
+  let clinic = getVal('ServiceUnitName') || '-'
+  const sessionName = getVal('SessionName') || ''
   if (sessionName && sessionName !== '-') {
     clinic = `${clinic} - ${sessionName}`
   } else if (sesi && sesi !== '-') {
     clinic = `${clinic} - Sesi ${sesi}`
   }
+  
+  const doctor = getVal('ParamedicName') || getVal('doctorName') || '-'
+  const room = getVal('Room') || getVal('room') || getVal('RoomName') || '-'
+  const penjamin = getVal('BusinessPartnerName') || '-'
 
-  const doctor = getVal('ParamedicName') || getVal('paramedicName') || getVal('doctorName') || '-'
-  const room = getVal('Room') || getVal('room') || getVal('RoomName') || getVal('roomName') || '-'
-  const penjamin = getVal('BusinessPartnerName') || getVal('businessPartnerName') || '-'
+  console.log('[PRINT-RECEIPT] Parsed:', { barcode_value, no_antrian, sesi, patientName, room })
 
-  console.log('[PRINT-RECEIPT] Parsed:', { barcode_value, no_antrian, sesi, medicalNo, patientName, sex, ageStr, room })
+  const { execSync } = require('node:child_process')
+  const os = require('node:os')
+  const fs = require('node:fs')
+  const path = require('node:path')
 
-  // ─── Try ESC/POS USB direct printing first ───────────────────────────
-  try {
-    const escpos = require('escpos')
-    escpos.USB = require('escpos-usb')
-
-    // Line helper: label (18 chars padded) + ': ' + value
-    // TM-T82 Font A = 48 chars per line at 80mm
-    const LW = 18
-    const W = 48
-    const fmtLine = (label, value) => {
-      const lbl = label.padEnd(LW)
-      const prefix = lbl + ': '
-      const pLen = prefix.length  // 20
-      const val = String(value || '-')
-      const maxVal = W - pLen     // 28
-      if (val.length <= maxVal) return [prefix + val]
-      // Word-wrap long values
-      const lines = []
-      const indent = ' '.repeat(pLen)
-      let cur = prefix
-      const parts = val.split(/(\s+)/)
-      for (const part of parts) {
-        if ((cur + part).length <= W) {
-          cur += part
-        } else {
-          if (cur.trim()) lines.push(cur)
-          cur = indent + part.trimStart()
-        }
-      }
-      if (cur.trim()) lines.push(cur)
-      return lines
+  const fmtLine = (label, value) => {
+    const lbl = label.padEnd(18)
+    const val = String(value || '-')
+    const line = `${lbl}: ${val}`
+    if (line.length > 48) {
+      const prefix = `${lbl}: `
+      const indent = ' '.repeat(prefix.length)
+      return `${line.substring(0, 48)}\n${indent}${line.substring(48)}`
     }
-
-    for (let copy = 1; copy <= copies; copy++) {
-      console.log(`[PRINT-RECEIPT] ESC/POS USB copy ${copy}/${copies}`)
-      await new Promise((resolve, reject) => {
-        // ESC/POS commands
-        const ESC = {
-          // Initialize printer
-          INIT: Buffer.from([0x1B, 0x40]),
-          // Text formatting
-          BOLD_ON: Buffer.from([0x1B, 0x45, 0x01]),
-          BOLD_OFF: Buffer.from([0x1B, 0x45, 0x00]),
-          // Font size
-          SIZE_NORMAL: Buffer.from([0x1B, 0x21, 0x00]),
-          SIZE_DOUBLE: Buffer.from([0x1B, 0x21, 0x30]), // Double width only
-          SIZE_DOUBLE_ALL: Buffer.from([0x1B, 0x21, 0x11]),
-          // Alignment
-          ALIGN_CT: Buffer.from([0x1B, 0x61, 0x01]),
-          ALIGN_LT: Buffer.from([0x1B, 0x61, 0x00]),
-          ALIGN_RT: Buffer.from([0x1B, 0x61, 0x02]),
-          // Feed and cut
-          FEED: Buffer.from([0x1B, 0x64, 0x03]),
-          CUT: Buffer.from([0x1D, 0x56, 0x00]),
-          LF: Buffer.from([0x0A]),
-        }
-
-        // Format a line: label (18 chars) + ': ' + value
-        const fmtLine = (label, value) => {
-          const lbl = label.padEnd(18)
-          const val = String(value || '-')
-          const line = `${lbl}: ${val}`
-          // Wrap if too long (48 chars max for 80mm)
-          if (line.length > 48) {
-            const prefix = `${lbl}: `
-            const indent = ' '.repeat(prefix.length)
-            const maxLen = 48
-            const first = line.substring(0, maxLen)
-            const rest = indent + line.substring(maxLen)
-            return `${first}\n${rest}`
-          }
-          return line
-        }
-
-        // Build receipt data
-        const title = 'BUKTI PENDAFTARAN'
-        const regNo = `*${barcode_value}*`
-        const queueLine = `No. Antrian : ${no_antrian}  Sesi : ${sesi}`
-
-        const dataRows = [
-          fmtLine('Tgl/Jam Registrasi', tgl_jam_registrasi),
-          fmtLine('No. Rekam Medis', medicalNo),
-          fmtLine('Nama Pasien / JK', `${patientName} / (${sex})`),
-          fmtLine('Tgl. Lahir / Umur', `${dobFormatted} / ${ageStr}`),
-          fmtLine('Unit Pelayanan', clinic),
-          fmtLine('Nama Dokter', doctor),
-          fmtLine('Nama Ruang', room),
-          fmtLine('Kiriman Dari', '-'),
-          fmtLine('Penjamin Bayar', penjamin),
-        ]
-
-        const checkboxes = '[ ] Farmasi  [ ] Laboratorium  [ ] Radiologi'
-        const checkboxes2 = '[ ] Pemakaian  [ ] Lain-Lain ..........'
-        const petugas = fmtLine('Petugas', 'System')
-        const footer = '* Mohon Bukti Pendaftaran ini jangan hilang'
-
-        // Combine all text lines
-        const textLines = [
-          title, regNo, '', queueLine, '',
-          ...dataRows, '',
-          checkboxes, '', checkboxes2, '',
-          petugas, '', footer
-        ]
-
-        // Create raw ESC/POS data
-        const chunks = []
-
-        // Initialize
-        chunks.push(ESC.INIT)
-
-        // Title - centered, bold, double width
-        chunks.push(ESC.ALIGN_CT)
-        chunks.push(ESC.BOLD_ON)
-        chunks.push(ESC.SIZE_DOUBLE)
-        chunks.push(Buffer.from(title + '\n', 'utf8'))
-
-        // Registration number - centered, normal
-        chunks.push(ESC.SIZE_NORMAL)
-        chunks.push(ESC.BOLD_OFF)
-        chunks.push(Buffer.from(regNo + '\n', 'utf8'))
-
-        // Queue line - left, bold, double width
-        chunks.push(ESC.ALIGN_LT)
-        chunks.push(ESC.BOLD_ON)
-        chunks.push(ESC.SIZE_DOUBLE)
-        chunks.push(Buffer.from(queueLine + '\n', 'utf8'))
-
-        // Data rows - left, normal
-        chunks.push(ESC.SIZE_NORMAL)
-        chunks.push(ESC.BOLD_OFF)
-        for (const line of dataRows) {
-          chunks.push(Buffer.from(line + '\n', 'utf8'))
-        }
-
-        // Checkboxes
-        chunks.push(Buffer.from('\n' + checkboxes + '\n\n', 'utf8'))
-        chunks.push(Buffer.from(checkboxes2 + '\n\n', 'utf8'))
-
-        // Petugas
-        chunks.push(Buffer.from(petugas + '\n\n', 'utf8'))
-
-        // Footer - bold
-        chunks.push(ESC.BOLD_ON)
-        chunks.push(Buffer.from(footer + '\n', 'utf8'))
-        chunks.push(ESC.BOLD_OFF)
-
-        // Feed and cut
-        chunks.push(ESC.FEED)
-        chunks.push(ESC.CUT)
-
-        // Combine all chunks
-        const printData = Buffer.concat(chunks)
-
-        // Write directly to USB using Windows commands
-        const { execSync, exec } = require('node:child_process')
-        const os = require('node:os')
-        const fs = require('node:fs')
-        const path = require('node:path')
-
-        const tmpFile = path.join(os.tmpdir(), `print_${Date.now()}.bin`)
-        fs.writeFileSync(tmpFile, printData)
-        console.log('[PRINT-RECEIPT] Binary file written:', tmpFile, 'size:', printData.length)
-
-        // Get printer port name dynamically from Windows
-        const getPortCmd = `powershell -Command "(Get-Printer | Where-Object {$_.Name -like '*TM-T82*' -or $_.Name -like '*EPSON*'}).PortName | Select-Object -First 1"`
-        let portName = 'USB002' // Default fallback
-        try {
-          const result = execSync(getPortCmd, { timeout: 5000 }).toString().trim()
-          if (result) {
-            portName = result
-            console.log('[PRINT-RECEIPT] Found port:', portName)
-          }
-        } catch (e) {
-          console.log('[PRINT-RECEIPT] Could not detect port, using USB002')
-        }
-
-        // Method 1: Use PowerShell to write directly to printer port (ESDPRT001)
-        const psScript = `
-          $data = [System.IO.File]::ReadAllBytes("${tmpFile.replace(/\\/g, '\\\\')}")
-          $fs = New-Object System.IO.FileStream("\\\\.\\${portName}", [System.IO.FileMode]::Create)
-          $fs.Write($data, 0, $data.Length)
-          $fs.Close()
-          Write-Output "Printed via FileStream"
-        `
-
-        try {
-          console.log('[PRINT-RECEIPT] Method: PowerShell FileStream to', portName)
-          const result = execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { timeout: 15000 })
-          console.log('[PRINT-RECEIPT] FileStream result:', result.toString())
-          try { fs.unlinkSync(tmpFile) } catch (_) {}
-          resolve()
-          return
-        } catch (e1) {
-          console.log('[PRINT-RECEIPT] FileStream failed:', e1.message)
-        }
-
-        // Method 2: Try copying to ESDPRT001 port directly
-        try {
-          console.log('[PRINT-RECEIPT] Method: Direct copy to ESDPRT001')
-          execSync(`cmd /c copy /B "${tmpFile}" "\\\\.\\ESDPRT001"`, { timeout: 15000, stdio: 'ignore' })
-          console.log('[PRINT-RECEIPT] ESDPRT001 copy OK')
-          try { fs.unlinkSync(tmpFile) } catch (_) {}
-          resolve()
-          return
-        } catch (e2) {
-          console.log('[PRINT-RECEIPT] ESDPRT001 failed:', e2.message)
-        }
-
-        // Method 3: Try USB002 port
-        try {
-          console.log('[PRINT-RECEIPT] Method: Direct copy to USB002')
-          execSync(`cmd /c copy /B "${tmpFile}" "\\\\.\\USB002"`, { timeout: 15000, stdio: 'ignore' })
-          console.log('[PRINT-RECEIPT] USB002 copy OK')
-          try { fs.unlinkSync(tmpFile) } catch (_) {}
-          resolve()
-          return
-        } catch (e3) {
-          console.log('[PRINT-RECEIPT] USB002 failed:', e3.message)
-        }
-
-        // Method 4: Use Windows print spooler
-        try {
-          console.log('[PRINT-RECEIPT] Method: Windows Print Spooler')
-          const printerCmd = `powershell -Command "(Get-Printer | Where-Object {$_.Name -like '*TM-T82*' -or $_.Name -like '*EPSON*'}).Name | Select-Object -First 1"`
-          const printerName = execSync(printerCmd, { timeout: 5000 }).toString().trim()
-          console.log('[PRINT-RECEIPT] Found printer:', printerName)
-
-          if (printerName) {
-            execSync(`print /D:"${printerName}" "${tmpFile}"`, { timeout: 15000, stdio: 'ignore' })
-            console.log('[PRINT-RECEIPT] Print spooler OK')
-            try { fs.unlinkSync(tmpFile) } catch (_) {}
-            resolve()
-            return
-          }
-        } catch (e4) {
-          console.log('[PRINT-RECEIPT] Print spooler failed:', e4.message)
-        }
-
-        // All methods failed
-        try { fs.unlinkSync(tmpFile) } catch (_) {}
-        reject(new Error('Tidak dapat mengirim data ke printer. Printer EPSON TM-T82 harus dalam mode Print (bukan storage) dan kertas harus tersedia.'))
-      })
-
-      // Close for loop
-    }
-
-    console.log('[PRINT-RECEIPT] Done via ESC/POS print')
-    return { success: true, method: 'raw-escpos' }
-  } catch (err) {
-    console.error('[PRINT-RECEIPT] Print error:', err.message)
-    throw new Error(`Gagal cetak struk: ${err.message}`)
+    return line
   }
+
+  const ESC = {
+    INIT: Buffer.from([0x1B, 0x40]),
+    BOLD_ON: Buffer.from([0x1B, 0x45, 0x01]),
+    BOLD_OFF: Buffer.from([0x1B, 0x45, 0x00]),
+    SIZE_NORMAL: Buffer.from([0x1B, 0x21, 0x00]),
+    SIZE_DOUBLE: Buffer.from([0x1B, 0x21, 0x30]),
+    ALIGN_CT: Buffer.from([0x1B, 0x61, 0x01]),
+    ALIGN_LT: Buffer.from([0x1B, 0x61, 0x00]),
+    FEED: Buffer.from([0x1B, 0x64, 0x03]),
+    CUT: Buffer.from([0x1D, 0x56, 0x00]),
+  }
+
+  const chunks = []
+  chunks.push(ESC.INIT)
+  
+  chunks.push(ESC.ALIGN_CT, ESC.BOLD_ON, ESC.SIZE_DOUBLE)
+  chunks.push(Buffer.from('BUKTI PENDAFTARAN\n', 'utf8'))
+  
+  chunks.push(ESC.SIZE_NORMAL, ESC.BOLD_OFF)
+  chunks.push(Buffer.from(`*${barcode_value}*\n`, 'utf8'))
+  
+  chunks.push(ESC.ALIGN_LT, ESC.BOLD_ON, ESC.SIZE_DOUBLE)
+  chunks.push(Buffer.from(`No. Antrian : ${no_antrian}  Sesi : ${sesi}\n`, 'utf8'))
+  
+  chunks.push(ESC.SIZE_NORMAL, ESC.BOLD_OFF)
+  chunks.push(Buffer.from(fmtLine('Tgl/Jam Registrasi', tgl_jam_registrasi) + '\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('No. Rekam Medis', medicalNo) + '\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('Nama Pasien / JK', `${patientName} / (${sex})`) + '\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('Tgl. Lahir / Umur', `${dobFormatted} / ${ageStr}`) + '\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('Unit Pelayanan', clinic) + '\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('Nama Dokter', doctor) + '\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('Nama Ruang', room) + '\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('Kiriman Dari', '-') + '\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('Penjamin Bayar', penjamin) + '\n', 'utf8'))
+  
+  chunks.push(Buffer.from('\n[ ] Farmasi  [ ] Laboratorium  [ ] Radiologi\n\n', 'utf8'))
+  chunks.push(Buffer.from('[ ] Pemakaian  [ ] Lain-Lain ..........\n\n', 'utf8'))
+  chunks.push(Buffer.from(fmtLine('Petugas', 'System') + '\n\n', 'utf8'))
+  
+  chunks.push(ESC.BOLD_ON)
+  chunks.push(Buffer.from('* Mohon Bukti Pendaftaran ini jangan hilang\n', 'utf8'))
+  chunks.push(ESC.BOLD_OFF)
+  chunks.push(ESC.FEED)
+  chunks.push(ESC.CUT)
+
+  const printData = Buffer.concat(chunks)
+  const tmpFile = path.join(os.tmpdir(), `print_${Date.now()}.bin`)
+  fs.writeFileSync(tmpFile, printData)
+  console.log('[PRINT-RECEIPT] Binary file:', tmpFile, 'size:', printData.length)
+
+  // Get printer port
+  let portName = 'USB002'
+  try {
+    const cmd = `powershell -Command "(Get-Printer | Where-Object {$_.Name -like '*TM-T82*'}).PortName | Select-Object -First 1"`
+    const result = execSync(cmd, { timeout: 5000 }).toString().trim()
+    if (result) portName = result
+    console.log('[PRINT-RECEIPT] Found port:', portName)
+  } catch (e) {
+    console.log('[PRINT-RECEIPT] Port detection failed, using USB002')
+  }
+
+  // Try ESDPRT001
+  try {
+    console.log('[PRINT-RECEIPT] Trying ESDPRT001...')
+    execSync(`copy /B "${tmpFile}" "\\\\.\\ESDPRT001"`, { stdio: 'ignore', timeout: 10000 })
+    console.log('[PRINT-RECEIPT] ESDPRT001 OK')
+    fs.unlinkSync(tmpFile)
+    return { success: true }
+  } catch (e) {
+    console.log('[PRINT-RECEIPT] ESDPRT001 failed:', e.message)
+  }
+
+  // Try USB002
+  try {
+    console.log('[PRINT-RECEIPT] Trying USB002...')
+    execSync(`copy /B "${tmpFile}" "\\\\.\\USB002"`, { stdio: 'ignore', timeout: 10000 })
+    console.log('[PRINT-RECEIPT] USB002 OK')
+    fs.unlinkSync(tmpFile)
+    return { success: true }
+  } catch (e) {
+    console.log('[PRINT-RECEIPT] USB002 failed:', e.message)
+  }
+
+  // Try detected port
+  try {
+    console.log('[PRINT-RECEIPT] Trying', portName, '...')
+    execSync(`copy /B "${tmpFile}" "\\\\.\\${portName}"`, { stdio: 'ignore', timeout: 10000 })
+    console.log('[PRINT-RECEIPT]', portName, 'OK')
+    fs.unlinkSync(tmpFile)
+    return { success: true }
+  } catch (e) {
+    console.log('[PRINT-RECEIPT]', portName, 'failed:', e.message)
+  }
+
+  fs.unlinkSync(tmpFile)
+  throw new Error('Tidak dapat mengirim data ke printer. Pastikan printer EPSON TM-T82 terhubung dan dalam mode Print.')
 })
 
 
