@@ -671,45 +671,67 @@ ipcMain.handle('print-receipt', async (event, content) => {
         fs.writeFileSync(tmpFile, printData)
         console.log('[PRINT-RECEIPT] Binary file written:', tmpFile, 'size:', printData.length)
 
-        // Method 1: Use PowerShell to write directly to USB port
+        // Get printer port name dynamically from Windows
+        const getPortCmd = `powershell -Command "(Get-Printer | Where-Object {$_.Name -like '*TM-T82*' -or $_.Name -like '*EPSON*'}).PortName | Select-Object -First 1"`
+        let portName = 'USB002' // Default fallback
+        try {
+          const result = execSync(getPortCmd, { timeout: 5000 }).toString().trim()
+          if (result) {
+            portName = result
+            console.log('[PRINT-RECEIPT] Found port:', portName)
+          }
+        } catch (e) {
+          console.log('[PRINT-RECEIPT] Could not detect port, using USB002')
+        }
+
+        // Method 1: Use PowerShell to write directly to printer port (ESDPRT001)
         const psScript = `
-          $portName = "USB001"
           $data = [System.IO.File]::ReadAllBytes("${tmpFile.replace(/\\/g, '\\\\')}")
-          $port = new-Object System.IO.Ports.SerialPort("\\\\.\\\\$portName", 9600, None, 8, One)
-          if ($port.IsOpen) { $port.Close() }
-          $port.Open()
-          $port.Write($data, 0, $data.Length)
-          $port.Close()
-          Write-Output "Printed via SerialPort"
+          $fs = New-Object System.IO.FileStream("\\\\.\\${portName}", [System.IO.FileMode]::Create)
+          $fs.Write($data, 0, $data.Length)
+          $fs.Close()
+          Write-Output "Printed via FileStream"
         `
 
         try {
-          console.log('[PRINT-RECEIPT] Method: PowerShell SerialPort')
+          console.log('[PRINT-RECEIPT] Method: PowerShell FileStream to', portName)
           const result = execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { timeout: 15000 })
-          console.log('[PRINT-RECEIPT] SerialPort result:', result.toString())
+          console.log('[PRINT-RECEIPT] FileStream result:', result.toString())
           try { fs.unlinkSync(tmpFile) } catch (_) {}
           resolve()
           return
         } catch (e1) {
-          console.log('[PRINT-RECEIPT] SerialPort failed:', e1.message)
+          console.log('[PRINT-RECEIPT] FileStream failed:', e1.message)
         }
 
-        // Method 2: Try copying to USB port directly
+        // Method 2: Try copying to ESDPRT001 port directly
         try {
-          console.log('[PRINT-RECEIPT] Method: Direct copy to USB001')
-          execSync(`cmd /c type "${tmpFile}" > \\\\.\\${'USB001'}`, { timeout: 15000, stdio: 'ignore' })
-          console.log('[PRINT-RECEIPT] Direct copy OK')
+          console.log('[PRINT-RECEIPT] Method: Direct copy to ESDPRT001')
+          execSync(`cmd /c copy /B "${tmpFile}" "\\\\.\\ESDPRT001"`, { timeout: 15000, stdio: 'ignore' })
+          console.log('[PRINT-RECEIPT] ESDPRT001 copy OK')
           try { fs.unlinkSync(tmpFile) } catch (_) {}
           resolve()
           return
         } catch (e2) {
-          console.log('[PRINT-RECEIPT] Direct copy failed:', e2.message)
+          console.log('[PRINT-RECEIPT] ESDPRT001 failed:', e2.message)
         }
 
-        // Method 3: Use Windows print spooler
+        // Method 3: Try USB002 port
+        try {
+          console.log('[PRINT-RECEIPT] Method: Direct copy to USB002')
+          execSync(`cmd /c copy /B "${tmpFile}" "\\\\.\\USB002"`, { timeout: 15000, stdio: 'ignore' })
+          console.log('[PRINT-RECEIPT] USB002 copy OK')
+          try { fs.unlinkSync(tmpFile) } catch (_) {}
+          resolve()
+          return
+        } catch (e3) {
+          console.log('[PRINT-RECEIPT] USB002 failed:', e3.message)
+        }
+
+        // Method 4: Use Windows print spooler
         try {
           console.log('[PRINT-RECEIPT] Method: Windows Print Spooler')
-          const printerCmd = `powershell -Command "(Get-Printer | Where-Object {$_.PortName -like 'USB*'}).Name | Select-Object -First 1"`
+          const printerCmd = `powershell -Command "(Get-Printer | Where-Object {$_.Name -like '*TM-T82*' -or $_.Name -like '*EPSON*'}).Name | Select-Object -First 1"`
           const printerName = execSync(printerCmd, { timeout: 5000 }).toString().trim()
           console.log('[PRINT-RECEIPT] Found printer:', printerName)
 
@@ -720,8 +742,8 @@ ipcMain.handle('print-receipt', async (event, content) => {
             resolve()
             return
           }
-        } catch (e3) {
-          console.log('[PRINT-RECEIPT] Print spooler failed:', e3.message)
+        } catch (e4) {
+          console.log('[PRINT-RECEIPT] Print spooler failed:', e4.message)
         }
 
         // All methods failed
