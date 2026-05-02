@@ -217,6 +217,15 @@ function buildReceiptHTMLString(d) {
   // Pad right to fill W chars (for no. antrian display)
   const padRight = (text, len) => String(text).padEnd(len).substring(0, len)
 
+  // Convert sex to L/P format
+  const convertSex = (sex) => {
+    if (!sex || sex === '-') return '-'
+    const s = String(sex).toUpperCase()
+    if (s === 'LAKI-LAKI' || s === 'LAKI LAKI' || s === 'MALE' || s === 'L') return 'L'
+    if (s === 'PEREMPUAN' || s === 'PEREMPUAN' || s === 'FEMALE' || s === 'P') return 'P'
+    return s.charAt(0)
+  }
+
   // Build all lines - with special formatting for title and queue sections
   // Using HTML tags to simulate larger text
   const lines = [
@@ -226,7 +235,7 @@ function buildReceiptHTMLString(d) {
     `<BIG>No. Antrian ${padRight(d.no_antrian, 6)}   Sesi : ${d.sesi}</BIG>`,
     fmtLine('Tgl/Jam Registrasi', d.tgl_jam_registrasi),
     fmtLine('No. Rekam Medis', d.no_rekam_medis),
-    fmtLine('Nama Pasien / JK', `${d.nama_pasien} / (${d.jenis_kelamin})`),
+    fmtLine('Nama Pasien / JK', `${d.nama_pasien} / (${convertSex(d.jenis_kelamin)})`),
     fmtLine('Tgl. Lahir / Umur', `${d.tgl_lahir} / ${d.umur}`),
     fmtLine('Unit Pelayanan', d.unit_pelayanan),
     fmtLine('Nama Dokter', d.nama_dokter),
@@ -234,7 +243,7 @@ function buildReceiptHTMLString(d) {
     fmtLine('Kiriman Dari', d.kiriman_dari),
     fmtLine('Penjamin Bayar', d.penjamin_bayar),
     '',
-    '[ ] Farmasi    [ ] Laboratorium    [ ] Radiologi',
+    '[ ] Farmasi  [ ] Laboratorium  [ ] Radiologi',
     '',
     '[ ] Pemakaian  [ ] Lain-Lain ..........',
     '',
@@ -255,9 +264,9 @@ function buildReceiptHTMLString(d) {
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   margin: 0;
-  padding: 2mm 3mm;
+  padding: 2mm 2mm;
   font-family: 'Courier New', Courier, monospace;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: bold;
   line-height: 1.4;
   width: 80mm;
@@ -273,9 +282,10 @@ pre {
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
+  text-align: left;
 }
 BIG {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: bold;
   display: block;
   text-align: center;
@@ -440,17 +450,63 @@ ipcMain.handle('print-receipt', async (event, content) => {
   const sesi = getVal('Session') || getVal('session') || '-'
   const regDate = getVal('RegistrationDate') || getVal('registrationDate') || '-'
   const regTime = getVal('RegistrationTime') || getVal('registrationTime') || '-'
+  const tgl_jam_registrasi = `${formatDate(regDate)} / ${regTime}`
   const medicalNo = getVal('MedicalNo') || getVal('medicalNo') || '-'
   const patientName = getVal('PatientName') || getVal('patientName') || '-'
-  const sex = getVal('Sex') || getVal('sex') || '-'
+
+  // Convert sex to L/P format
+  let sex = getVal('Sex') || getVal('sex') || '-'
+  if (sex !== '-' && sex.length > 1) {
+    const s = String(sex).toUpperCase()
+    if (s === 'LAKI-LAKI' || s === 'LAKI LAKI' || s === 'MALE') sex = 'L'
+    else if (s === 'PEREMPUAN' || s === 'FEMALE') sex = 'P'
+  }
+
   const dob = getVal('DateOfBirth') || getVal('dateOfBirth') || '-'
-  const age = getVal('AgeInYear') || getVal('ageInYear') || '-'
-  const clinic = getVal('ServiceUnitName') || getVal('serviceUnitName') || getVal('clinicName') || '-'
+  const dobFormatted = formatDate(dob)
+
+  // Calculate age in Yy Mm Dd format from registration date
+  let ageStr = getVal('AgeInYear') || getVal('ageInYear') || '-'
+  if (dob !== '-' && regDate !== '-' && ageStr === '-') {
+    try {
+      let dobDate, regDateObj
+      if (dob.includes('-') && dob.split('-')[0].length === 4) {
+        dobDate = new Date(dob)
+      } else if (dob.includes('-')) {
+        const [d, m, y] = dob.split('-')
+        dobDate = new Date(`${y}-${m}-${d}`)
+      }
+      if (regDate.includes('-') && regDate.split('-')[0].length === 4) {
+        regDateObj = new Date(regDate)
+      } else if (regDate.includes('-')) {
+        const [d, m, y] = regDate.split('-')
+        regDateObj = new Date(`${y}-${m}-${d}`)
+      }
+      if (dobDate && regDateObj && !isNaN(dobDate) && !isNaN(regDateObj)) {
+        const diffTime = Math.abs(regDateObj - dobDate)
+        const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+        const years = Math.floor(totalDays / 365)
+        const months = Math.floor((totalDays % 365) / 30)
+        const days = totalDays - (years * 365) - (months * 30)
+        ageStr = `${years}y ${months}m ${days}d`
+      }
+    } catch (e) {}
+  }
+
+  // Get service unit with session suffix
+  let clinic = getVal('ServiceUnitName') || getVal('serviceUnitName') || getVal('clinicName') || '-'
+  const sessionName = getVal('SessionName') || getVal('sessionName') || ''
+  if (sessionName && sessionName !== '-') {
+    clinic = `${clinic} - ${sessionName}`
+  } else if (sesi && sesi !== '-') {
+    clinic = `${clinic} - Sesi ${sesi}`
+  }
+
   const doctor = getVal('ParamedicName') || getVal('paramedicName') || getVal('doctorName') || '-'
   const room = getVal('Room') || getVal('room') || getVal('RoomName') || getVal('roomName') || '-'
   const penjamin = getVal('BusinessPartnerName') || getVal('businessPartnerName') || '-'
 
-  console.log('[PRINT-RECEIPT] Parsed:', { barcode_value, no_antrian, sesi, medicalNo, patientName, room })
+  console.log('[PRINT-RECEIPT] Parsed:', { barcode_value, no_antrian, sesi, medicalNo, patientName, sex, ageStr, room })
 
   // ─── Try ESC/POS USB direct printing first ───────────────────────────
   try {
@@ -531,10 +587,10 @@ ipcMain.handle('print-receipt', async (event, content) => {
             printer.align('LT').font('A').size(1, 1)
 
             const rows = [
-              fmtLine('Tgl/Jam Registrasi', `${regDate} / ${regTime}`),
+              fmtLine('Tgl/Jam Registrasi', tgl_jam_registrasi),
               fmtLine('No. Rekam Medis', medicalNo),
               fmtLine('Nama Pasien / JK', `${patientName} / (${sex})`),
-              fmtLine('Tgl. Lahir / Umur', `${dob} / ${age}`),
+              fmtLine('Tgl. Lahir / Umur', `${dobFormatted} / ${ageStr}`),
               fmtLine('Unit Pelayanan', clinic),
               fmtLine('Nama Dokter', doctor),
               fmtLine('Nama Ruang', room),
@@ -548,9 +604,9 @@ ipcMain.handle('print-receipt', async (event, content) => {
               }
             }
 
-            // ── Checkboxes ──
+            // ── Checkboxes - properly aligned ──
             printer.feed(1)
-            printer.text('[ ] Farmasi    [ ] Laboratorium    [ ] Radiologi')
+            printer.text('[ ] Farmasi  [ ] Laboratorium  [ ] Radiologi')
             printer.feed(1)
             printer.text('[ ] Pemakaian  [ ] Lain-Lain ..........')
             printer.feed(1)
@@ -654,23 +710,92 @@ function generateReceiptHTMLWithData(data) {
   const sesi = getVal('Session') || getVal('session') || '-'
   const regDate = getVal('RegistrationDate') || getVal('registrationDate') || getVal('registrationdate') || '-'
   const regTime = getVal('RegistrationTime') || getVal('registrationTime') || getVal('registrationtime') || '-'
-  const tgl_jam_registrasi = `${regDate} / ${regTime}`
+  const tgl_jam_registrasi = `${formatDate(regDate)} / ${regTime}`
   const medicalNo = getVal('MedicalNo') || getVal('medicalNo') || getVal('medicalno') || '-'
   const patientName = getVal('PatientName') || getVal('patientName') || getVal('patientname') || '-'
-  const sex = getVal('Sex') || getVal('sex') || '-'
+
+  // Get sex/gender - API returns 'L' or 'P' directly
+  let sex = getVal('Sex') || getVal('sex') || '-'
+  if (sex !== '-' && sex.length > 1) {
+    // Convert full gender words to single letter
+    const s = sex.toUpperCase()
+    if (s === 'LAKI-LAKI' || s === 'LAKI LAKI' || s === 'MALE') sex = 'L'
+    else if (s === 'PEREMPUAN' || s === 'FEMALE') sex = 'P'
+  }
+
+  // Get date of birth
   const dob = getVal('DateOfBirth') || getVal('dateOfBirth') || getVal('dateofbirth') || '-'
-  const age = getVal('AgeInYear') || getVal('ageInYear') || getVal('ageinyear') || '-'
-  const clinic = getVal('ServiceUnitName') || getVal('serviceUnitName') || getVal('clinicName') || getVal('clinicname') || '-'
-  const doctor = getVal('ParamedicName') || getVal('paramedicName') || getVal('doctorName') || getVal('doctorname') || '-'
+
+  // Get age in format Yy Mm Dd from registration date
+  let ageStr = '-'
+  if (dob !== '-' && regDate !== '-') {
+    try {
+      // Parse dates (format: YYYY-MM-DD or DD-MM-YYYY)
+      let dobDate, regDateObj
+      if (dob.includes('-') && dob.split('-')[0].length === 4) {
+        dobDate = new Date(dob)
+      } else if (dob.includes('-')) {
+        const [d, m, y] = dob.split('-')
+        dobDate = new Date(`${y}-${m}-${d}`)
+      }
+
+      if (regDate.includes('-') && regDate.split('-')[0].length === 4) {
+        regDateObj = new Date(regDate)
+      } else if (regDate.includes('-')) {
+        const [d, m, y] = regDate.split('-')
+        regDateObj = new Date(`${y}-${m}-${d}`)
+      }
+
+      if (dobDate && regDateObj && !isNaN(dobDate) && !isNaN(regDateObj)) {
+        const diffTime = Math.abs(regDateObj - dobDate)
+        const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+        const years = Math.floor(totalDays / 365)
+        const months = Math.floor((totalDays % 365) / 30)
+        const days = totalDays - (years * 365) - (months * 30)
+        ageStr = `${years}y ${months}m ${days}d`
+      }
+    } catch (e) {
+      console.log('[PRINT-RECEIPT] Age calculation error:', e)
+      ageStr = getVal('AgeInYear') || getVal('ageInYear') || '-'
+    }
+  } else {
+    ageStr = getVal('AgeInYear') || getVal('ageInYear') || '-'
+  }
+
+  // Get service unit name with session - try ServiceUnitName first, then clinicName
+  let clinic = getVal('ServiceUnitName') || getVal('serviceUnitName') || getVal('clinicName') || getVal('clinicname') || '-'
+  // If session name is available, append it
+  const sessionName = getVal('SessionName') || getVal('sessionName') || getVal('SessionDesc') || getVal('sessionDesc') || ''
+  if (sessionName && sessionName !== '-') {
+    clinic = `${clinic} - ${sessionName}`
+  } else if (sesi && sesi !== '-') {
+    // Fallback: use session number as "Pagi/Siang/Malam" based on time
+    const timePart = regTime || ''
+    if (timePart.includes('12:') || timePart.includes('13:') || timePart.includes('14:') || timePart.includes('15:')) {
+      clinic = `${clinic} - Sore`
+    } else if (timePart.includes('16:') || timePart.includes('17:') || timePart.includes('18:') || timePart.includes('19:') || timePart.includes('20:')) {
+      clinic = `${clinic} - Malam`
+    } else {
+      clinic = `${clinic} - Pagi`
+    }
+  }
+
+  // Get full doctor name
+  let doctor = getVal('ParamedicName') || getVal('paramedicName') || getVal('doctorName') || getVal('doctorname') || '-'
+  const doctorTitle = getVal('DoctorTitle') || getVal('doctorTitle') || ''
+  if (doctorTitle && doctorTitle !== '-') {
+    doctor = `${doctorTitle} ${doctor}`
+  }
+
   const room = getVal('Room') || getVal('room') || getVal('RoomName') || getVal('roomName') || '-'
   const penjamin = getVal('BusinessPartnerName') || getVal('businessPartnerName') || '-'
 
-  console.log('[PRINT-RECEIPT] Parsed values:', { barcode_value, no_antrian, sesi, medicalNo, patientName, room })
+  console.log('[PRINT-RECEIPT] Parsed values:', { barcode_value, no_antrian, sesi, medicalNo, patientName, sex, ageStr, room })
 
   return buildReceiptHTMLString({
     barcode_value, no_antrian, sesi, tgl_jam_registrasi,
     no_rekam_medis: medicalNo, nama_pasien: patientName,
-    jenis_kelamin: sex, tgl_lahir: dob, umur: age,
+    jenis_kelamin: sex, tgl_lahir: formatDate(dob), umur: ageStr,
     unit_pelayanan: clinic, nama_dokter: doctor,
     nama_ruang: room, kiriman_dari: '-', penjamin_bayar: penjamin
   })
