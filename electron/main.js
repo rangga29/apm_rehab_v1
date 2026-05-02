@@ -662,93 +662,71 @@ ipcMain.handle('print-receipt', async (event, content) => {
         const printData = Buffer.concat(chunks)
 
         // Write directly to USB using Windows commands
-        const { exec } = require('node:child_process')
+        const { execSync, exec } = require('node:child_process')
         const os = require('node:os')
         const fs = require('node:fs')
         const path = require('node:path')
 
         const tmpFile = path.join(os.tmpdir(), `print_${Date.now()}.bin`)
         fs.writeFileSync(tmpFile, printData)
-        console.log('[PRINT-RECEIPT] Binary file written:', tmpFile)
+        console.log('[PRINT-RECEIPT] Binary file written:', tmpFile, 'size:', printData.length)
 
-        // Try multiple methods to print
-        const tryPrint = (method, cmd, successMsg) => {
-          return new Promise((resolve, reject) => {
-            console.log(`[PRINT-RECEIPT] Trying method: ${method}`)
-            exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
-              console.log(`[PRINT-RECEIPT] ${method} stdout:`, stdout)
-              console.log(`[PRINT-RECEIPT] ${method} stderr:`, stderr)
-              if (err) {
-                console.log(`[PRINT-RECEIPT] ${method} failed:`, err.message)
-                reject(err)
-              } else {
-                console.log(`[PRINT-RECEIPT] ${successMsg}`)
-                resolve()
-              }
-            })
-          })
+        // Method 1: Use PowerShell to write directly to USB port
+        const psScript = `
+          $portName = "USB001"
+          $data = [System.IO.File]::ReadAllBytes("${tmpFile.replace(/\\/g, '\\\\')}")
+          $port = new-Object System.IO.Ports.SerialPort("\\\\.\\\\$portName", 9600, None, 8, One)
+          if ($port.IsOpen) { $port.Close() }
+          $port.Open()
+          $port.Write($data, 0, $data.Length)
+          $port.Close()
+          Write-Output "Printed via SerialPort"
+        `
+
+        try {
+          console.log('[PRINT-RECEIPT] Method: PowerShell SerialPort')
+          const result = execSync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { timeout: 15000 })
+          console.log('[PRINT-RECEIPT] SerialPort result:', result.toString())
+          try { fs.unlinkSync(tmpFile) } catch (_) {}
+          resolve()
+          return
+        } catch (e1) {
+          console.log('[PRINT-RECEIPT] SerialPort failed:', e1.message)
         }
 
-        // Method 1: Find printer share name and print via share
-        const findShareCmd = `powershell -Command "Get-Printer | Where-Object {$_.Shared -eq $true} | Select-Object -First 1 -ExpandProperty ShareName"`
-        exec(findShareCmd, { timeout: 5000 }, async (err, stdout) => {
-          const shareName = stdout.trim()
-          console.log('[PRINT-RECEIPT] Found share:', shareName)
+        // Method 2: Try copying to USB port directly
+        try {
+          console.log('[PRINT-RECEIPT] Method: Direct copy to USB001')
+          execSync(`cmd /c type "${tmpFile}" > \\\\.\\${'USB001'}`, { timeout: 15000, stdio: 'ignore' })
+          console.log('[PRINT-RECEIPT] Direct copy OK')
+          try { fs.unlinkSync(tmpFile) } catch (_) {}
+          resolve()
+          return
+        } catch (e2) {
+          console.log('[PRINT-RECEIPT] Direct copy failed:', e2.message)
+        }
 
-          if (shareName) {
-            try {
-              await tryPrint('Share', `cmd /c type "${tmpFile}" > \\\\.\\localhost\\${shareName}`, 'Print OK via share')
-              try { fs.unlinkSync(tmpFile) } catch (_) {}
-              resolve()
-              return
-            } catch (e) {
-              console.log('[PRINT-RECEIPT] Share method failed, trying other methods...')
-            }
-          }
+        // Method 3: Use Windows print spooler
+        try {
+          console.log('[PRINT-RECEIPT] Method: Windows Print Spooler')
+          const printerCmd = `powershell -Command "(Get-Printer | Where-Object {$_.PortName -like 'USB*'}).Name | Select-Object -First 1"`
+          const printerName = execSync(printerCmd, { timeout: 5000 }).toString().trim()
+          console.log('[PRINT-RECEIPT] Found printer:', printerName)
 
-          // Method 2: Print via printer name using LPR or raw
-          const findPrinterCmd = `powershell -Command "Get-Printer | Select-Object -First 1 -ExpandProperty Name"`
-          exec(findPrinterCmd, { timeout: 5000 }, async (err2, stdout2) => {
-            const printerName = stdout2.trim()
-            console.log('[PRINT-RECEIPT] Printer name:', printerName)
-
-            if (printerName) {
-              // Try using Windows print command
-              try {
-                await tryPrint('Print Command', `print /D:"${printerName}" "${tmpFile}"`, 'Print OK via print command')
-                try { fs.unlinkSync(tmpFile) } catch (_) {}
-                resolve()
-                return
-              } catch (e) {
-                console.log('[PRINT-RECEIPT] Print command failed...')
-              }
-            }
-
-            // Method 3: Try USB001 directly
-            try {
-              await tryPrint('USB001', `cmd /c type "${tmpFile}" > \\\\.\\USB001`, 'Print OK via USB001')
-              try { fs.unlinkSync(tmpFile) } catch (_) {}
-              resolve()
-              return
-            } catch (e) {
-              console.log('[PRINT-RECEIPT] USB001 failed...')
-            }
-
-            // Method 4: Try LPT1 (sometimes redirected)
-            try {
-              await tryPrint('LPT1', `cmd /c type "${tmpFile}" > LPT1`, 'Print OK via LPT1')
-              try { fs.unlinkSync(tmpFile) } catch (_) {}
-              resolve()
-              return
-            } catch (e) {
-              console.log('[PRINT-RECEIPT] LPT1 failed...')
-            }
-
-            // All methods failed
+          if (printerName) {
+            execSync(`print /D:"${printerName}" "${tmpFile}"`, { timeout: 15000, stdio: 'ignore' })
+            console.log('[PRINT-RECEIPT] Print spooler OK')
             try { fs.unlinkSync(tmpFile) } catch (_) {}
-            reject(new Error('Tidak dapat mengirim data ke printer. Pastikan printer dalam mode printer (bukan storage) dan coba lagi.'))
-          })
-        })
+            resolve()
+            return
+          }
+        } catch (e3) {
+          console.log('[PRINT-RECEIPT] Print spooler failed:', e3.message)
+        }
+
+        // All methods failed
+        try { fs.unlinkSync(tmpFile) } catch (_) {}
+        reject(new Error('Tidak dapat mengirim data ke printer. Printer EPSON TM-T82 harus dalam mode Print (bukan storage) dan kertas harus tersedia.'))
       })
 
       // Close for loop
