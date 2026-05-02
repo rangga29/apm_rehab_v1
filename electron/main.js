@@ -81,6 +81,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false,
+      sandbox: false,
       // Enable camera access
       enableRemoteModule: false
     }
