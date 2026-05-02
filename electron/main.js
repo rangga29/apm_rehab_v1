@@ -285,7 +285,7 @@ pre {
   text-align: left;
 }
 BIG {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: bold;
   display: block;
   text-align: center;
@@ -555,36 +555,37 @@ ipcMain.handle('print-receipt', async (event, content) => {
           }
 
           try {
-            // ── Title: BUKTI PENDAFTARAN (bold, centered, larger font) ──
+            // ── Title: BUKTI PENDAFTARAN (FontA12, double size ~17pt) ──
             printer
               .font('A')
               .align('CT')
               .style('B')
-              .size(2, 2)
+              .size(2, 1)  // Double width, normal height for 17pt equivalent
               .text('BUKTI PENDAFTARAN')
               .feed(1)
 
-            // ── Registration Number (centered with asterisk) ──
+            // ── Registration Number (centered with asterisk, normal size) ──
             printer
               .style('NORMAL')
               .size(1, 1)
+              .align('CT')
               .text(`*${barcode_value}*`)
               .feed(1)
 
-            // ── No. Antrian (double size) + Sesi (double size) ──
+            // ── No. Antrian + Sesi (FontA12, double size ~17pt) ──
             printer
               .align('LT')
               .font('A')
               .style('B')
-              .size(2, 2)
-            printer.print('No. Antrian ')
-            printer.print(String(no_antrian))
-            printer.print('   Sesi : ')
+              .size(2, 1)  // Double width for 17pt equivalent
+            printer.print('No. Antrian : ')
+            printer.text(String(no_antrian))
+            printer.print('  Sesi : ')
             printer.text(String(sesi))
             printer.feed(1)
 
-            // ── Data rows ──
-            printer.align('LT').font('A').size(1, 1)
+            // ── Data rows (FontA11, normal size ~8.5pt) ──
+            printer.align('LT').font('A').size(1, 1).style('NORMAL')
 
             const rows = [
               fmtLine('Tgl/Jam Registrasi', tgl_jam_registrasi),
