@@ -545,10 +545,10 @@ ipcMain.handle('print-receipt', async (event, content) => {
       console.log(`[PRINT-RECEIPT] ESC/POS USB copy ${copy}/${copies}`)
       await new Promise((resolve, reject) => {
         const escpos = require('escpos')
-        const escposUSB = require('escpos-usb')
+        const USB = escpos.USB
 
         // Find available USB printers
-        const printers = escposUSB.findPrinter()
+        const printers = USB.findPrinter()
         console.log('[PRINT-RECEIPT] Available USB printers:', printers.length)
 
         if (printers.length === 0) {
@@ -557,7 +557,7 @@ ipcMain.handle('print-receipt', async (event, content) => {
         }
 
         // Use the first available printer
-        const device = new escposUSB(printers[0])
+        const device = new USB(printers[0])
         const printer = new escpos.Printer(device)
 
         device.open((err) => {
