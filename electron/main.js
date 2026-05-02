@@ -547,17 +547,30 @@ ipcMain.handle('print-receipt', async (event, content) => {
         const escpos = require('escpos')
         const USB = escpos.USB
 
-        // Find available USB printers
-        const printers = USB.findPrinter()
-        console.log('[PRINT-RECEIPT] Available USB printers:', printers.length)
-
-        if (printers.length === 0) {
-          reject(new Error('Tidak ada printer USB ditemukan. Pastikan printer terhubung dan menyala.'))
-          return
+        // EPSON TM-T82 typical VID:PID
+        // Try to find printer by VID/PID, or auto-detect
+        let device
+        try {
+          // First try with VID 0x04b8 (Epson) and PID 0x0202 (TM-T82)
+          device = new USB(0x04b8, 0x0202)
+        } catch (e1) {
+          console.log('[PRINT-RECEIPT] Printer not found by VID/PID, trying auto-detect...')
+          try {
+            const printers = USB.findPrinter()
+            console.log('[PRINT-RECEIPT] Available USB printers:', printers.length)
+            if (printers.length > 0) {
+              device = new USB(printers[0])
+            } else {
+              reject(new Error('Tidak ada printer USB ditemukan. Pastikan printer terhubung dan menyala.'))
+              return
+            }
+          } catch (e2) {
+            console.error('[PRINT-RECEIPT] Auto-detect failed:', e2.message)
+            reject(new Error('Printer tidak ditemukan. Pastikan printer terhubung via USB dan drivers sudah terinstall.'))
+            return
+          }
         }
 
-        // Use the first available printer
-        const device = new USB(printers[0])
         const printer = new escpos.Printer(device)
 
         device.open((err) => {
